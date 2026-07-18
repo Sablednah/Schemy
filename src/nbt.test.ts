@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { decodeVarints, readParsedSchematic, type NbtCompound } from './nbt';
+import { decodePackedStates, decodeVarints, readParsedSchematic, type NbtCompound } from './nbt';
+
+function pack(values:number[],paletteSize:number){const bits=Math.max(2,Math.ceil(Math.log2(paletteSize))),data=Array<bigint>(Math.ceil(values.length*bits/64)).fill(0n);values.forEach((value,i)=>{const bit=i*bits,index=Math.floor(bit/64),offset=bit%64;data[index]|=BigInt(value)<<BigInt(offset);if(offset+bits>64)data[index+1]|=BigInt(value)>>BigInt(64-offset)});return new BigInt64Array(data.map(v=>BigInt.asIntN(64,v)))}
 
 describe('schematic formats', () => {
   it('decodes Sponge varints', () => {
@@ -26,5 +28,19 @@ describe('schematic formats', () => {
     expect(result.format).toBe('Java structure NBT');
     expect(result.palette).toEqual(['minecraft:air','minecraft:stone','minecraft:oak_log[axis=y]']);
     expect([...result.states]).toEqual([0,2]);
+  });
+
+  it('decodes packed Litematic states across long boundaries',()=>{
+    const values=Array.from({length:40},(_,i)=>i%5),packed=pack(values,5);
+    expect([...decodePackedStates(packed,values.length,5)]).toEqual(values);
+  });
+
+  it('combines positioned Litematic regions including negative sizes',()=>{
+    const region=(position:number,size:number,name:string)=>({Position:{x:position,y:0,z:0},Size:{x:size,y:1,z:1},BlockStatePalette:[{Name:'minecraft:air'},{Name:name}],BlockStates:pack([1,1],2)});
+    const root:NbtCompound={Version:6,MinecraftDataVersion:3955,Metadata:{Name:'Multi-region'},Regions:{Left:region(0,2,'minecraft:stone'),Right:region(4,-2,'minecraft:gold_block')}};
+    const result=readParsedSchematic(root);
+    expect(result.format).toBe('Litematic v6');
+    expect([result.width,result.height,result.length]).toEqual([5,1,1]);
+    expect([...result.states]).toEqual([1,1,0,2,2]);
   });
 });

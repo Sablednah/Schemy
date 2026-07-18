@@ -4,5 +4,6 @@
     "strict": true, "skipLibCheck": true, "outDir": "dist-electron",
     "types": ["node"], "lib": ["ES2022", "DOM"]
   },
-  "include": ["electron", "src"]
+  "include": ["electron", "src"],
+  "exclude": ["src/**/*.test.ts"]
 }

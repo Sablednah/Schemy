@@ -52,12 +52,31 @@ function readStructure(n:NbtCompound):Schematic{
   return {width,height,length,states,palette,format:'Java structure NBT'};
 }
 
+function xyz(value:Nbt|undefined,label:string){const v=compound(value);if(!v)throw new Error(`Litematic region has no ${label}`);return {x:Number(v.x),y:Number(v.y),z:Number(v.z)}}
+
+export function decodePackedStates(data:BigInt64Array,count:number,paletteSize:number):Uint32Array{
+  const bits=Math.max(2,Math.ceil(Math.log2(Math.max(1,paletteSize)))),mask=(1n<<BigInt(bits))-1n,out=new Uint32Array(count),unsigned=[...data].map(v=>BigInt.asUintN(64,v));
+  if(data.length<Math.ceil(count*bits/64))throw new Error('Litematic block-state array is truncated');
+  for(let i=0;i<count;i++){const bit=i*bits,index=Math.floor(bit/64),offset=bit%64;let value=unsigned[index]>>BigInt(offset);if(offset+bits>64)value|=unsigned[index+1]<<BigInt(64-offset);out[i]=Number(value&mask)}return out;
+}
+
+function readLitematic(n:NbtCompound):Schematic{
+  const regions=compound(n.Regions);if(!regions)throw new Error('Litematic has no regions');
+  const parsed:{position:{x:number;y:number;z:number};size:{x:number;y:number;z:number};width:number;height:number;length:number;palette:string[];states:Uint32Array}[]=[];
+  let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
+  for(const value of Object.values(regions)){const region=compound(value);if(!region)continue;const position=xyz(region.Position,'Position'),size=xyz(region.Size,'Size'),width=Math.abs(size.x),height=Math.abs(size.y),length=Math.abs(size.z),entries=list(region.BlockStatePalette),packed=region.BlockStates;if(!width||!height||!length||!entries||!(packed instanceof BigInt64Array))continue;const palette=entries.map(blockStateName),states=decodePackedStates(packed,width*height*length,palette.length);parsed.push({position,size,width,height,length,palette,states});minX=Math.min(minX,position.x+(size.x<0?size.x+1:0));minY=Math.min(minY,position.y+(size.y<0?size.y+1:0));minZ=Math.min(minZ,position.z+(size.z<0?size.z+1:0));maxX=Math.max(maxX,position.x+(size.x>0?size.x-1:0));maxY=Math.max(maxY,position.y+(size.y>0?size.y-1:0));maxZ=Math.max(maxZ,position.z+(size.z>0?size.z-1:0))}
+  if(!parsed.length)throw new Error('Litematic contains no readable regions');const width=maxX-minX+1,height=maxY-minY+1,length=maxZ-minZ+1,states=new Uint32Array(width*height*length),palette=['minecraft:air'],lookup=new Map<string,number>([['minecraft:air',0]]);
+  for(const region of parsed){const remap=region.palette.map(name=>{if(name==='minecraft:cave_air'||name==='minecraft:void_air')return 0;let id=lookup.get(name);if(id===undefined){id=palette.length;lookup.set(name,id);palette.push(name)}return id});for(let y=0;y<region.height;y++)for(let z=0;z<region.length;z++)for(let x=0;x<region.width;x++){const local=x+z*region.width+y*region.width*region.length,id=remap[region.states[local]]??0;if(!id)continue;const worldX=region.position.x+(region.size.x<0?-x:x)-minX,worldY=region.position.y+(region.size.y<0?-y:y)-minY,worldZ=region.position.z+(region.size.z<0?-z:z)-minZ;states[worldX+worldZ*width+worldY*width*length]=id}}
+  return {width,height,length,states,palette,format:`Litematic v${Number(n.Version)||'?'}`};
+}
+
 export function readParsedSchematic(root:NbtCompound):Schematic{
   if(root.Blocks instanceof Uint8Array&&root.Width!==undefined)return readLegacy(root);
+  if(compound(root.Regions)&&root.Version!==undefined)return readLitematic(root);
   const nested=compound(root.Schematic);if(nested?.Version!==undefined)return readSponge(nested);
   if(root.Version!==undefined&&(root.BlockData instanceof Uint8Array||compound(root.Blocks)))return readSponge(root);
   if(Array.isArray(root.size)&&Array.isArray(root.palette)&&Array.isArray(root.blocks))return readStructure(root);
-  throw new Error('Unsupported NBT structure. Expected .schematic, Sponge .schem, or Java structure .nbt');
+  throw new Error('Unsupported NBT structure. Expected .schematic, .schem, .nbt, or .litematic');
 }
 
 export function readSchematic(data:Uint8Array):Schematic{return readParsedSchematic(parseNbt(data))}

@@ -1,6 +1,6 @@
 {
   "name": "schemy",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "packageManager": "pnpm@11.9.0",
   "description": "Fast cross-platform 3D viewer for Minecraft .schematic files",
   "author": {
@@ -35,8 +35,8 @@
     "productName": "Schemy",
     "directories": { "output": "release" },
     "files": ["dist/**/*", "dist-electron/**/*", "package.json"],
-    "mac": { "category": "public.app-category.graphics-design", "target": ["dmg"], "fileAssociations": [{"ext": ["schematic", "schem", "nbt"], "name": "Minecraft Structure", "role": "Viewer"}] },
-    "win": { "target": ["nsis"], "fileAssociations": [{"ext": ["schematic", "schem", "nbt"], "name": "Minecraft Structure", "role": "Viewer"}] },
-    "linux": { "target": ["AppImage", "deb"], "category": "Graphics", "fileAssociations": [{"ext": ["schematic", "schem", "nbt"], "name": "Minecraft Structure", "role": "Viewer", "mimeType": "application/x-minecraft-structure"}] }
+    "mac": { "category": "public.app-category.graphics-design", "target": ["dmg"], "fileAssociations": [{"ext": ["schematic", "schem", "nbt", "litematic"], "name": "Minecraft Structure", "role": "Viewer"}] },
+    "win": { "target": ["nsis"], "fileAssociations": [{"ext": ["schematic", "schem", "nbt", "litematic"], "name": "Minecraft Structure", "role": "Viewer"}] },
+    "linux": { "target": ["AppImage", "deb"], "category": "Graphics", "fileAssociations": [{"ext": ["schematic", "schem", "nbt", "litematic"], "name": "Minecraft Structure", "role": "Viewer", "mimeType": "application/x-minecraft-structure"}] }
   }
 }
