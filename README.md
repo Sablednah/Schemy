@@ -13,6 +13,7 @@ Open a structure from the File menu, drag it into the window, or associate a sup
 - Double-click file associations
 - File picker and drag-and-drop opening
 - Efficient instanced rendering for large structures
+- Procedural geometry for common non-cube Minecraft blocks
 - Original colour preview plus optional generated pixel textures
 - Gzip-compressed and uncompressed NBT support
 - Model format, dimensions, and non-air block count
@@ -27,7 +28,7 @@ Open a structure from the File menu, drag it into the window, or associate a sup
 | `.nbt` | Vanilla Java structure block | Palettes, properties, and sparse block positions |
 | `.litematic` | Litematica | Packed 64-bit block states and multiple positioned regions |
 
-Block and entity NBT is read safely but is not visually rendered yet. Schemy currently represents blocks as full cubes, so stairs, slabs, fences, panes, plants, doors, and similar blocks do not yet have their exact Minecraft geometry.
+Block and entity NBT is read safely but is not visually rendered yet. Schemy includes procedural models for slabs, stairs (including inner and outer corners), fences, walls, panes, bars, doors, trapdoors, rails, carpets, snow layers, ladders, plants, torches, signs, chests, beds, cauldrons, lanterns, buttons, pressure plates, and flower pots. Highly specialised or resource-pack-defined models still use a cube or a simplified approximation.
 
 ## Controls
 
@@ -79,7 +80,7 @@ The macOS artifact is currently unsigned. macOS users must explicitly allow it t
 
 ## Roadmap
 
-- Accurate geometry for non-cube blocks
+- More specialised and resource-pack-defined block geometry
 - Optional user-supplied Minecraft resource packs
 - Block entity and entity previews
 - Windows Explorer thumbnails and Preview pane integration

@@ -2,6 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { readSchematic, type Schematic } from './nbt';
+import { blockName as baseName, geometryForBlock } from './geometry';
 
 const app=document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML=`<canvas></canvas><header><div class="brand"><b>SCHEMY</b></div><div class="actions"><button id="textures" aria-pressed="false">Textures: Off</button><button id="open">Open structure</button></div></header><section id="empty"><div class="cube">◇</div><h1>Drop a structure file</h1><p>.schematic, .schem, .nbt, or .litematic</p><button id="browse">Browse files</button></section><aside id="info"></aside><div id="error"></div>`;
@@ -16,7 +17,6 @@ scene.add(new THREE.GridHelper(100,100,0x3d6344,0x253329));
 let model:THREE.Group|undefined,current:Schematic|undefined,currentName='',textured=false;
 const legacyColors:Record<number,number>={1:0x8c8c8c,2:0x60913b,3:0x79563a,4:0x777777,5:0xb88a55,7:0x333333,8:0x377dba,9:0x377dba,12:0xdac68b,13:0x8a806e,17:0x715236,18:0x3d713a,20:0xb9d7df,24:0xd4bd78,35:0xd8d8d8,41:0xf4cf42,42:0xbfc3c4,45:0x9d4d36,49:0x312244,79:0xa9d7e8,80:0xf5f5f5,87:0x74352d,89:0xd6b84c,98:0x777777};
 
-function baseName(state:string){return state.split('[',1)[0].replace(/^minecraft:/,'')}
 function colorFor(state:string){
   const legacy=/legacy:block_(\d+)/.exec(state);if(legacy)return legacyColors[Number(legacy[1])]??0xbd63b8;
   const n=baseName(state);if(n.includes('air')||n.includes('structure_void'))return 0;
@@ -45,7 +45,7 @@ function materialFor(state:string){const color=colorFor(state),name=baseName(sta
 function renderModel(s:Schematic,name:string,resetCamera=true){
   if(model){scene.remove(model);model.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();const materials=Array.isArray(o.material)?o.material:[o.material];materials.forEach(m=>{if(m instanceof THREE.MeshStandardMaterial)m.map?.dispose();m.dispose()})}})}
   model=new THREE.Group();const groups=new Map<number,number[]>();for(let i=0;i<s.states.length;i++){const state=s.states[i],block=s.palette[state]??'unknown:block';if(colorFor(block)===0)continue;let values=groups.get(state);if(!values){values=[];groups.set(state,values)}values.push(i)}
-  const matrix=new THREE.Matrix4();for(const [state,indices] of groups){const mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),materialFor(s.palette[state]??'unknown:block'),indices.length);indices.forEach((v,j)=>{const x=v%s.width,z=Math.floor(v/s.width)%s.length,y=Math.floor(v/(s.width*s.length));matrix.makeTranslation(x-s.width/2+.5,y+.5,z-s.length/2+.5);mesh.setMatrixAt(j,matrix)});model.add(mesh)}scene.add(model);
+  const matrix=new THREE.Matrix4();for(const [state,indices] of groups){const block=s.palette[state]??'unknown:block',mesh=new THREE.InstancedMesh(geometryForBlock(block),materialFor(block),indices.length);indices.forEach((v,j)=>{const x=v%s.width,z=Math.floor(v/s.width)%s.length,y=Math.floor(v/(s.width*s.length));matrix.makeTranslation(x-s.width/2+.5,y+.5,z-s.length/2+.5);mesh.setMatrixAt(j,matrix)});model.add(mesh)}scene.add(model);
   empty.hidden=true;error.textContent='';info.innerHTML=`<b>${name}</b><span>${s.format}</span><span>${s.width} × ${s.height} × ${s.length}</span><span>${s.states.reduce((n,id)=>n+(colorFor(s.palette[id]??'')?1:0),0).toLocaleString()} blocks</span>`;
   if(resetCamera){const size=Math.max(s.width,s.height,s.length);controls.target.set(0,s.height/2,0);camera.position.set(size*1.3,size*.9,size*1.3);camera.near=Math.max(.01,size/1000);camera.far=size*20;camera.updateProjectionMatrix();controls.update()}
 }
