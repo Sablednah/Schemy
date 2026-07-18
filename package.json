@@ -1,0 +1,38 @@
+{
+  "name": "schematic-viewer",
+  "version": "0.1.1",
+  "packageManager": "pnpm@11.9.0",
+  "description": "Fast cross-platform 3D viewer for Minecraft .schematic files",
+  "main": "dist-electron/electron/main.js",
+  "type": "module",
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist-electron',{recursive:true,force:true})\"",
+    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "pnpm clean && tsc && vite build && electron-builder",
+    "build:web": "tsc && vite build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "three": "^0.178.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/three": "^0.178.0",
+    "concurrently": "^9.2.0",
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0",
+    "vitest": "^3.2.4",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "uk.co.sable.schematicviewer",
+    "productName": "Schematic Viewer",
+    "directories": { "output": "release" },
+    "files": ["dist/**/*", "dist-electron/**/*", "package.json"],
+    "mac": { "category": "public.app-category.graphics-design", "target": ["dmg"], "fileAssociations": [{"ext": "schematic", "name": "Minecraft Schematic", "role": "Viewer"}] },
+    "win": { "target": ["nsis"], "fileAssociations": [{"ext": "schematic", "name": "Minecraft Schematic", "role": "Viewer"}] },
+    "linux": { "target": ["AppImage", "deb"], "category": "Graphics", "fileAssociations": [{"ext": "schematic", "name": "Minecraft Schematic", "role": "Viewer", "mimeType": "application/x-minecraft-schematic"}] }
+  }
+}
