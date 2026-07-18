@@ -75,6 +75,8 @@ std::wstring SchemyExecutablePath() {
   path.resize(wcslen(path.c_str()));
   if (!PathRemoveFileSpecW(path.data())) return {};
   path.resize(wcslen(path.c_str()));
+  if (!PathRemoveFileSpecW(path.data())) return {};
+  path.resize(wcslen(path.c_str()));
   path += L"\\Schemy.exe";
   return path;
 }
