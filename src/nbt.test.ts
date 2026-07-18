@@ -15,6 +15,12 @@ describe('schematic formats', () => {
     expect([...result.states]).toEqual([0,1]);
   });
 
+  it('preserves classic block metadata as modern states',()=>{
+    const root:NbtCompound={Width:4,Height:1,Length:1,Blocks:new Uint8Array([35,5,44,53]),Data:new Uint8Array([14,1,8,4])};
+    const result=readParsedSchematic(root);
+    expect(result.palette).toContain('minecraft:red_wool');expect(result.palette).toContain('minecraft:spruce_planks');expect(result.palette).toContain('minecraft:stone_slab[type=top]');expect(result.palette).toContain('minecraft:oak_stairs[facing=east,half=top,shape=straight]');
+  });
+
   it('reads nested Sponge v3', () => {
     const root:NbtCompound={Schematic:{Version:3,Width:1,Height:1,Length:2,Blocks:{Palette:{'minecraft:oak_planks':0,'minecraft:glass':1},Data:new Uint8Array([0,1])}}};
     const result=readParsedSchematic(root);

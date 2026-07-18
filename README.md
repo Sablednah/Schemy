@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/branding/schemy-logo-horizontal.png" alt="Schemy" width="760">
+</p>
+
 # Schemy
 
 [![Build desktop apps](https://github.com/Sablednah/Schemy/actions/workflows/build.yml/badge.svg)](https://github.com/Sablednah/Schemy/actions/workflows/build.yml)
@@ -23,12 +27,12 @@ Open a structure from the File menu, drag it into the window, or associate a sup
 
 | Extension | Format | Support |
 | --- | --- | --- |
-| `.schematic` | Classic MCEdit/Schematica | Legacy block IDs, including `AddBlocks` extended IDs |
+| `.schematic` | Classic MCEdit/Schematica | Legacy block IDs, metadata variants, and `AddBlocks` extended IDs |
 | `.schem` | Sponge/WorldEdit v1–v3 | Modern palettes, block states, and varint block data |
 | `.nbt` | Vanilla Java structure block | Palettes, properties, and sparse block positions |
 | `.litematic` | Litematica | Packed 64-bit block states and multiple positioned regions |
 
-Block and entity NBT is read safely but is not visually rendered yet. Schemy includes procedural models for slabs, stairs (including inner and outer corners), fences, walls, panes, bars, doors, trapdoors, rails, carpets, snow layers, ladders, plants, torches, signs, chests, beds, cauldrons, lanterns, buttons, pressure plates, and flower pots. Highly specialised or resource-pack-defined models still use a cube or a simplified approximation.
+Block and entity NBT is read safely but is not visually rendered yet. Schemy includes procedural models for slabs, stairs (including inner and outer corners), fences, walls, panes, bars, doors, trapdoors, rails, carpets, snow layers, ladders, plants, wall and standing torches, signs, banners, chests, beds, cauldrons, lanterns, buttons, pressure plates, flower pots, hoppers, anvils, bells, chains, rods, brewing stands, lecterns, grindstones, stonecutters, campfires, heads, candles, eggs, crystals, scaffolding, vines, portals, redstone wire, repeaters, farmland, and cacti. Technical blocks such as barriers and light blocks remain invisible. Highly specialised or resource-pack-defined models still use a cube or a simplified approximation.
 
 ## Controls
 
@@ -38,7 +42,7 @@ Block and entity NBT is read safely but is not visually rendered yet. Schemy inc
 | Pan | Right mouse drag |
 | Zoom | Mouse wheel |
 | Open file | `Ctrl+O` / `Cmd+O` |
-| Change appearance | **Textures: On/Off** button |
+| Change appearance | **View → Generated textures**, `Ctrl+T` / `Cmd+T`, or the **Textures: On/Off** button |
 
 The texture mode is generated locally and does not redistribute Mojang texture assets. The original colour rendering remains the default.
 
