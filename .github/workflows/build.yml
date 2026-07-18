@@ -17,13 +17,13 @@ jobs:
         include:
           - name: Windows
             os: windows-latest
-            artifact: schematic-viewer-windows
+            artifact: schemy-windows
           - name: macOS
             os: macos-latest
-            artifact: schematic-viewer-macos
+            artifact: schemy-macos
           - name: Linux
             os: ubuntu-latest
-            artifact: schematic-viewer-linux
+            artifact: schemy-linux
     runs-on: ${{ matrix.os }}
 
     steps:

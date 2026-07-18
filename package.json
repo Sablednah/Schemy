@@ -1,6 +1,6 @@
 {
-  "name": "schematic-viewer",
-  "version": "0.1.1",
+  "name": "schemy",
+  "version": "0.2.0",
   "packageManager": "pnpm@11.9.0",
   "description": "Fast cross-platform 3D viewer for Minecraft .schematic files",
   "main": "dist-electron/electron/main.js",
@@ -28,7 +28,7 @@
   },
   "build": {
     "appId": "uk.co.sable.schematicviewer",
-    "productName": "Schematic Viewer",
+    "productName": "Schemy",
     "directories": { "output": "release" },
     "files": ["dist/**/*", "dist-electron/**/*", "package.json"],
     "mac": { "category": "public.app-category.graphics-design", "target": ["dmg"], "fileAssociations": [{"ext": "schematic", "name": "Minecraft Schematic", "role": "Viewer"}] },

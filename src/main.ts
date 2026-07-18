@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { readClassicSchematic, type Schematic } from './nbt';
 
 const app=document.querySelector<HTMLDivElement>('#app')!;
-app.innerHTML=`<canvas></canvas><header><div class="brand"><b>SCHEMATIC</b><span>VIEWER</span></div><button id="open">Open schematic</button></header><section id="empty"><div class="cube">◇</div><h1>Drop a .schematic file</h1><p>or open one to inspect it in 3D</p><button id="browse">Browse files</button></section><aside id="info"></aside><div id="error"></div>`;
+app.innerHTML=`<canvas></canvas><header><div class="brand"><b>SCHEMY</b></div><button id="open">Open schematic</button></header><section id="empty"><div class="cube">◇</div><h1>Drop a .schematic file</h1><p>or open one to inspect it in 3D</p><button id="browse">Browse files</button></section><aside id="info"></aside><div id="error"></div>`;
 const canvas=app.querySelector('canvas')!,empty=app.querySelector<HTMLElement>('#empty')!,info=app.querySelector<HTMLElement>('#info')!,error=app.querySelector<HTMLElement>('#error')!;
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setClearColor(0x101410);renderer.shadowMap.enabled=true;
 const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(45,1,.1,10000);camera.position.set(30,25,30);

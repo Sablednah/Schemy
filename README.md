@@ -1,6 +1,6 @@
-# Schematic Viewer
+# Schemy
 
-A small, fast desktop app for previewing classic Minecraft `.schematic` files in 3D.
+A small, fast desktop app for previewing Minecraft structure files in 3D.
 
 Open a schematic from the File menu, drag it into the window, or associate `.schematic` files with the app and open them directly from your file manager.
 

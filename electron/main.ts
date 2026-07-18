@@ -15,7 +15,7 @@ function sendFile(file?: string) { if (file && window) window.webContents.send('
 async function createWindow() {
   window = new BrowserWindow({ width: 1200, height: 800, minWidth: 720, minHeight: 480, backgroundColor: '#101410', titleBarStyle: 'hiddenInset', webPreferences: { preload: path.join(root, 'dist-electron/electron/preload.cjs'), contextIsolation: true, sandbox: true } });
   window.webContents.on('did-fail-load', (_event, code, description, url) => {
-    dialog.showErrorBox('Schematic Viewer could not start', `${description} (${code})\n\n${url}`);
+    dialog.showErrorBox('Schemy could not start', `${description} (${code})\n\n${url}`);
   });
   // Register before loading: loadURL/loadFile resolve after did-finish-load.
   window.webContents.once('did-finish-load', () => { sendFile(pendingFile ?? fileFromArgs(process.argv.slice(1))); pendingFile = undefined; });
