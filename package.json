@@ -3,12 +3,16 @@
   "version": "0.2.0",
   "packageManager": "pnpm@11.9.0",
   "description": "Fast cross-platform 3D viewer for Minecraft .schematic files",
+  "author": {
+    "name": "Sablednah",
+    "email": "631656+Sablednah@users.noreply.github.com"
+  },
   "main": "dist-electron/electron/main.js",
   "type": "module",
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('dist-electron',{recursive:true,force:true})\"",
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "build": "pnpm clean && tsc && vite build && electron-builder",
+    "build": "pnpm clean && tsc && vite build && electron-builder --publish never",
     "build:web": "tsc && vite build",
     "test": "vitest run"
   },
