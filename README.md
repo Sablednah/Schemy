@@ -1,21 +1,33 @@
 # Schemy
 
-A small, fast desktop app for previewing Minecraft structure files in 3D.
+[![Build desktop apps](https://github.com/Sablednah/Schemy/actions/workflows/build.yml/badge.svg)](https://github.com/Sablednah/Schemy/actions/workflows/build.yml)
 
-Open a schematic from the File menu, drag it into the window, or associate `.schematic` files with the app and open them directly from your file manager.
+A small, fast desktop app for previewing Minecraft structure files in 3D on Windows, macOS, and Linux.
+
+Open a structure from the File menu, drag it into the window, or associate a supported file type with Schemy and open it directly from your file manager.
 
 ## Features
 
 - Interactive orbit, pan, and zoom controls
-- Native Windows, macOS, and Linux applications
-- Double-click file association
+- Native Windows, macOS, and Linux packages
+- Double-click file associations
 - File picker and drag-and-drop opening
 - Efficient instanced rendering for large structures
+- Original colour preview plus optional generated pixel textures
 - Gzip-compressed and uncompressed NBT support
-- Classic `.schematic`, Sponge/WorldEdit `.schem`, Java structure `.nbt`, and `.litematic`
-- Optional self-contained pixel texture mode
-- Classic block IDs and `AddBlocks` extended IDs
-- Model dimensions and non-air block count
+- Model format, dimensions, and non-air block count
+- Automatic format detection from NBT contents
+
+## Supported formats
+
+| Extension | Format | Support |
+| --- | --- | --- |
+| `.schematic` | Classic MCEdit/Schematica | Legacy block IDs, including `AddBlocks` extended IDs |
+| `.schem` | Sponge/WorldEdit v1–v3 | Modern palettes, block states, and varint block data |
+| `.nbt` | Vanilla Java structure block | Palettes, properties, and sparse block positions |
+| `.litematic` | Litematica | Packed 64-bit block states and multiple positioned regions |
+
+Block and entity NBT is read safely but is not visually rendered yet. Schemy currently represents blocks as full cubes, so stairs, slabs, fences, panes, plants, doors, and similar blocks do not yet have their exact Minecraft geometry.
 
 ## Controls
 
@@ -25,10 +37,9 @@ Open a schematic from the File menu, drag it into the window, or associate `.sch
 | Pan | Right mouse drag |
 | Zoom | Mouse wheel |
 | Open file | `Ctrl+O` / `Cmd+O` |
+| Change appearance | **Textures: On/Off** button |
 
-## Supported formats
-
-Schemy supports classic MCEdit/Schematica `.schematic`, Sponge/WorldEdit v1–v3 `.schem`, vanilla Java structure-block `.nbt`, and multi-region Litematica `.litematic` files. Block entities and entities are parsed safely but are not rendered yet.
+The texture mode is generated locally and does not redistribute Mojang texture assets. The original colour rendering remains the default.
 
 ## Development
 
@@ -39,11 +50,17 @@ corepack enable
 corepack prepare pnpm@11.9.0 --activate
 ```
 
-Then install dependencies and start the development app:
+Install dependencies and start the development app:
 
 ```powershell
 pnpm install
 pnpm dev
+```
+
+Run the parser tests:
+
+```powershell
+pnpm test
 ```
 
 ## Building locally
@@ -56,14 +73,15 @@ Installers are written to `release/`. Build on the operating system you want to 
 
 ## Automated builds
 
-The GitHub Actions workflow builds on real hosted Windows, macOS, and Linux runners. Open the repository's **Actions** tab, select **Build desktop apps**, and choose **Run workflow**. Download the resulting installers from the run's **Artifacts** section.
+The [GitHub Actions workflow](https://github.com/Sablednah/Schemy/actions/workflows/build.yml) tests the parsers and builds on real hosted Windows, macOS, and Linux runners. Open a successful run and download the package for your platform from its **Artifacts** section.
 
-The macOS artifact is currently unsigned. macOS users must explicitly allow it through Gatekeeper. Public distribution without that warning requires an Apple Developer certificate and notarization credentials.
+The macOS artifact is currently unsigned. macOS users must explicitly allow it through Gatekeeper. Public distribution without that warning requires Apple Developer signing and notarization.
 
 ## Roadmap
 
-- Optional user-supplied resource-pack textures and improved block geometry
-- Block entities and entity previews
+- Accurate geometry for non-cube blocks
+- Optional user-supplied Minecraft resource packs
+- Block entity and entity previews
 - Windows Explorer thumbnails and Preview pane integration
 - Render-to-image export
 
