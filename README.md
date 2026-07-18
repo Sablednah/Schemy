@@ -12,6 +12,8 @@ Open a schematic from the File menu, drag it into the window, or associate `.sch
 - File picker and drag-and-drop opening
 - Efficient instanced rendering for large structures
 - Gzip-compressed and uncompressed NBT support
+- Classic `.schematic`, Sponge/WorldEdit `.schem`, and Java structure `.nbt`
+- Optional self-contained pixel texture mode
 - Classic block IDs and `AddBlocks` extended IDs
 - Model dimensions and non-air block count
 
@@ -26,7 +28,7 @@ Open a schematic from the File menu, drag it into the window, or associate `.sch
 
 ## Supported formats
 
-This release supports classic MCEdit/Schematica `.schematic` files. Sponge and WorldEdit `.schem` files are not supported yet.
+Schemy supports classic MCEdit/Schematica `.schematic`, Sponge/WorldEdit v1–v3 `.schem`, and vanilla Java structure-block `.nbt` files. Block entities and entities are parsed safely but are not rendered yet.
 
 ## Development
 
@@ -60,8 +62,8 @@ The macOS artifact is currently unsigned. macOS users must explicitly allow it t
 
 ## Roadmap
 
-- Minecraft block textures and improved block geometry
-- Sponge/WorldEdit `.schem` support
+- Optional user-supplied resource-pack textures and improved block geometry
+- Litematica `.litematic` support
 - Windows Explorer thumbnails and Preview pane integration
 - Render-to-image export
 

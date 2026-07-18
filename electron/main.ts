@@ -9,7 +9,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 let window: BrowserWindow | null = null;
 let pendingFile: string | undefined;
 
-function fileFromArgs(args: string[]) { return args.find(a => a.toLowerCase().endsWith('.schematic')); }
+function fileFromArgs(args: string[]) { return args.find(a => /\.(schematic|schem|nbt)$/i.test(a)); }
 function sendFile(file?: string) { if (file && window) window.webContents.send('open-file', file); else if (file) pendingFile = file; }
 
 async function createWindow() {
@@ -30,7 +30,7 @@ else {
   app.on('second-instance', (_e, argv) => { sendFile(fileFromArgs(argv)); window?.show(); window?.focus(); });
   app.on('open-file', (e, file) => { e.preventDefault(); sendFile(file); });
   app.whenReady().then(() => {
-    ipcMain.handle('choose-file', async () => (await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Minecraft Schematic', extensions: ['schematic'] }] })).filePaths[0]);
+    ipcMain.handle('choose-file', async () => (await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Minecraft Structures', extensions: ['schematic', 'schem', 'nbt'] }] })).filePaths[0]);
     ipcMain.handle('read-file', async (_e, file: string) => {
       const input = await readFile(file); const data = input[0] === 0x1f && input[1] === 0x8b ? gunzipSync(input) : input;
       return { name: path.basename(file), data };
