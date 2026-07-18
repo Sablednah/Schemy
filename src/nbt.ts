@@ -1,3 +1,4 @@
+import { legacyBlockState } from './legacy.js';
 export type Nbt = number | bigint | string | Uint8Array | Int32Array | BigInt64Array | Nbt[] | NbtCompound;
 export type NbtCompound = { [key: string]: Nbt };
 
@@ -18,8 +19,6 @@ export type Schematic = {
 const compound=(value:Nbt|undefined):NbtCompound|undefined=>value && typeof value==='object' && !Array.isArray(value) && !(value instanceof Uint8Array) && !(value instanceof Int32Array) && !(value instanceof BigInt64Array) ? value as NbtCompound : undefined;
 const list=(value:Nbt|undefined):Nbt[]|undefined=>Array.isArray(value)?value:undefined;
 const dimensions=(n:NbtCompound)=>({width:Number(n.Width)&0xffff,height:Number(n.Height)&0xffff,length:Number(n.Length)&0xffff});
-const legacyNames:Record<number,string>={0:'minecraft:air',1:'minecraft:stone',2:'minecraft:grass_block',3:'minecraft:dirt',4:'minecraft:cobblestone',5:'minecraft:oak_planks',7:'minecraft:bedrock',8:'minecraft:water',9:'minecraft:water',12:'minecraft:sand',13:'minecraft:gravel',17:'minecraft:oak_log',18:'minecraft:oak_leaves',20:'minecraft:glass',24:'minecraft:sandstone',35:'minecraft:white_wool',41:'minecraft:gold_block',42:'minecraft:iron_block',45:'minecraft:bricks',49:'minecraft:obsidian',79:'minecraft:ice',80:'minecraft:snow_block',87:'minecraft:netherrack',89:'minecraft:glowstone',98:'minecraft:stone_bricks'};
-
 export function decodeVarints(bytes:Uint8Array, expected:number):Uint32Array{
   const out=new Uint32Array(expected);let index=0,value=0,shift=0;
   for(const byte of bytes){value|=(byte&0x7f)<<shift;if(byte&0x80){shift+=7;if(shift>28)throw new Error('Invalid schematic varint')}else{if(index>=expected)throw new Error('Schematic contains too many block states');out[index++]=value>>>0;value=0;shift=0}}
@@ -30,8 +29,9 @@ function readLegacy(n:NbtCompound):Schematic{
   const {width,height,length}=dimensions(n),raw=n.Blocks;if(!width||!height||!length||!(raw instanceof Uint8Array))throw new Error('Invalid classic MCEdit schematic');
   const count=width*height*length;if(raw.length!==count)throw new Error(`Block array has ${raw.length} entries; expected ${count}`);
   const ids=new Uint16Array(count);ids.set(raw);const add=n.AddBlocks;if(add instanceof Uint8Array)for(let i=0;i<count;i++)ids[i]|=(((i&1)?add[i>>1]>>4:add[i>>1]&15)<<8);
+  const metadata=n.Data instanceof Uint8Array?n.Data:undefined;if(metadata&&metadata.length!==count)throw new Error(`Data array has ${metadata.length} entries; expected ${count}`);
   const palette=['minecraft:air'],lookup=new Map<number,number>([[0,0]]),states=new Uint32Array(count);
-  for(let i=0;i<count;i++){const id=ids[i];let state=lookup.get(id);if(state===undefined){state=palette.length;lookup.set(id,state);palette.push(legacyNames[id]??`legacy:block_${id}`)}states[i]=state}
+  for(let i=0;i<count;i++){const id=ids[i],data=(metadata?.[i]??0)&15,key=id<<4|data;let state=lookup.get(key);if(state===undefined){state=palette.length;lookup.set(key,state);palette.push(legacyBlockState(id,data))}states[i]=state}
   return {width,height,length,states,palette,format:'Classic MCEdit'};
 }
 

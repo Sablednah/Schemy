@@ -13,7 +13,7 @@ function fileFromArgs(args: string[]) { return args.find(a => /\.(schematic|sche
 function sendFile(file?: string) { if (file && window) window.webContents.send('open-file', file); else if (file) pendingFile = file; }
 
 async function createWindow() {
-  window = new BrowserWindow({ width: 1200, height: 800, minWidth: 720, minHeight: 480, backgroundColor: '#101410', titleBarStyle: 'hiddenInset', webPreferences: { preload: path.join(root, 'dist-electron/electron/preload.cjs'), contextIsolation: true, sandbox: true } });
+  window = new BrowserWindow({ width: 1200, height: 800, minWidth: 720, minHeight: 480, backgroundColor: '#101410', titleBarStyle: 'hiddenInset', icon:path.join(root,app.isPackaged?'dist/schemy-icon.png':'public/schemy-icon.png'),webPreferences: { preload: path.join(root, 'dist-electron/electron/preload.cjs'), contextIsolation: true, sandbox: true } });
   window.webContents.on('did-fail-load', (_event, code, description, url) => {
     dialog.showErrorBox('Schemy could not start', `${description} (${code})\n\n${url}`);
   });
@@ -35,7 +35,8 @@ else {
       const input = await readFile(file); const data = input[0] === 0x1f && input[1] === 0x8b ? gunzipSync(input) : input;
       return { name: path.basename(file), data };
     });
-    Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'File', submenu: [{ label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => window?.webContents.send('pick-file') }, { role: 'quit' }] }, { label: 'View', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }] }]));
+    ipcMain.on('texture-state', (_event, enabled:boolean) => { const item=Menu.getApplicationMenu()?.getMenuItemById('texture-mode');if(item)item.checked=enabled });
+    Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'File', submenu: [{ label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => window?.webContents.send('pick-file') }, { role: 'quit' }] }, { label: 'View', submenu: [{ id:'texture-mode',label:'Generated textures',type:'checkbox',accelerator:'CmdOrCtrl+T',click:item=>window?.webContents.send('texture-mode',item.checked) },{type:'separator'},{ role: 'reload' }, { role: 'togglefullscreen' }] }]));
     createWindow(); app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
   });
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
