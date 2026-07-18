@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <shlobj.h>
 #include <shobjidl.h>
 #include <thumbcache.h>
 #include <wincodec.h>
