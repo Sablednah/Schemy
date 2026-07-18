@@ -44,6 +44,10 @@ jobs:
       - name: Run parser tests
         run: pnpm test
 
+      - name: Build Windows Explorer integration
+        if: runner.os == 'Windows'
+        run: pnpm run build:windows-shell
+
       - name: Build application
         run: pnpm build
         env:
