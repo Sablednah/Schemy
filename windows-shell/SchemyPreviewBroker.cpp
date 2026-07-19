@@ -87,6 +87,24 @@ std::wstring ModulePath() {
   return path;
 }
 
+bool RegisterStartup() {
+  HKEY key = nullptr;
+  const LONG opened = RegCreateKeyExW(HKEY_CURRENT_USER,
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, nullptr, 0,
+    KEY_SET_VALUE, nullptr, &key, nullptr);
+  if (opened != ERROR_SUCCESS) {
+    SetLastError(opened);
+    return false;
+  }
+  const std::wstring command = L"\"" + ModulePath() + L"\"";
+  const LONG written = RegSetValueExW(key, L"Schemy Preview Broker", 0, REG_SZ,
+    reinterpret_cast<const BYTE*>(command.c_str()),
+    static_cast<DWORD>((command.size() + 1) * sizeof(wchar_t)));
+  RegCloseKey(key);
+  if (written != ERROR_SUCCESS) SetLastError(written);
+  return written == ERROR_SUCCESS;
+}
+
 std::wstring SchemyExecutablePath() {
   std::wstring path = ModulePath();
   for (int index = 0; index < 3; ++index) {
@@ -313,6 +331,8 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, wchar_t* commandLine, int) {
   std::wstring sidString;
   if (!CurrentUserSid(userSid, sidString)) return 2;
   if (commandLine && wcsstr(commandLine, L"--shutdown")) return SignalShutdown(sidString) ? 0 : 1;
+
+  if (!RegisterStartup()) Trace(L"startup registration failed error=" + std::to_wstring(GetLastError()));
 
   HANDLE mutex = CreateMutexW(nullptr, FALSE, MutexName(sidString).c_str());
   if (!mutex || GetLastError() == ERROR_ALREADY_EXISTS) {

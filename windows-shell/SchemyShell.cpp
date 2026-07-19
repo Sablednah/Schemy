@@ -512,14 +512,18 @@ public:
     }
     TracePreview(L"DoPreview window created=" +
       std::to_wstring(reinterpret_cast<UINT_PTR>(window_)));
+    loading_ = true;
+    UpdateWindow(window_);
 
     const HRESULT rendered = Render(std::clamp<UINT>(std::max(width, height), 256, 1024), &previewBitmap_);
     if (FAILED(rendered)) {
+      loading_ = false;
       TracePreview(L"DoPreview render failed hr=" + std::to_wstring(static_cast<unsigned long>(rendered)));
       DestroyWindow(window_);
       window_ = nullptr;
       return rendered;
     }
+    loading_ = false;
     InvalidateRect(window_, nullptr, FALSE);
     TracePreview(L"DoPreview completed");
     return S_OK;
@@ -530,6 +534,7 @@ public:
     window_ = nullptr;
     if (previewBitmap_) DeleteObject(previewBitmap_);
     previewBitmap_ = nullptr;
+    loading_ = false;
     SafeRelease(stream_);
     return S_OK;
   }
@@ -611,6 +616,13 @@ public:
         source.bmWidth, source.bmHeight, SRCCOPY);
       SelectObject(memory, previous);
       DeleteDC(memory);
+    } else if (loading_) {
+      SetBkMode(dc, TRANSPARENT);
+      SetTextColor(dc, RGB(196, 207, 196));
+      HGDIOBJ previousFont = SelectObject(dc, GetStockObject(DEFAULT_GUI_FONT));
+      DrawTextW(dc, L"Loading...", -1, &client,
+        DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+      SelectObject(dc, previousFont);
     }
     EndPaint(window_, &paint);
   }
@@ -665,6 +677,7 @@ private:
   HWND window_ = nullptr;
   RECT rect_{};
   HBITMAP previewBitmap_ = nullptr;
+  bool loading_ = false;
   COLORREF background_ = RGB(16, 20, 16);
 };
 
