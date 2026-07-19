@@ -1,6 +1,6 @@
 {
   "name": "schemy",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "packageManager": "pnpm@11.9.0",
   "description": "Fast cross-platform 3D viewer for Minecraft .schematic files",
   "author": {

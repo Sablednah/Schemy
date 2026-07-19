@@ -26,6 +26,7 @@ constexpr wchar_t kPreviewClsid[] = L"{5199AC8D-A310-4BD1-A567-843DC7D05A3E}";
 constexpr wchar_t kThumbnailHandler[] = L"{E357FCCD-A995-4576-B01F-234630154E96}";
 constexpr wchar_t kPreviewHandler[] = L"{8895B1C6-B41F-4C1C-A562-0D564250836F}";
 constexpr wchar_t kPreviewHostAppId[] = L"{6D2B5079-2F0B-48DD-AB7F-97CEC514D30B}";
+constexpr wchar_t kProgId[] = L"Minecraft Structure";
 constexpr wchar_t kWindowClass[] = L"SchemyPreviewWindow";
 constexpr wchar_t kExtensions[][11] = { L".schematic", L".schem", L".nbt", L".litematic" };
 constexpr size_t kMaximumStructureBytes = 512ULL * 1024ULL * 1024ULL;
@@ -564,6 +565,11 @@ HRESULT RegisterFileHandlers() {
     result = SetString(HKEY_CURRENT_USER, base + kThumbnailHandler, nullptr, kThumbnailClsid);
     if (SUCCEEDED(result)) result = SetString(HKEY_CURRENT_USER, base + kPreviewHandler, nullptr, kPreviewClsid);
   }
+  // Preview Handler lookup follows the file association's active ProgID. The
+  // installer assigns every supported extension to this shared ProgID.
+  if (SUCCEEDED(result)) result = SetString(HKEY_CURRENT_USER,
+    std::wstring(L"Software\\Classes\\") + kProgId + L"\\shellex\\" + kPreviewHandler,
+    nullptr, kPreviewClsid);
   if (SUCCEEDED(result)) result = SetString(HKEY_CURRENT_USER,
     L"Software\\Microsoft\\Windows\\CurrentVersion\\PreviewHandlers", kPreviewClsid,
     L"Schemy Structure Preview");
@@ -580,6 +586,9 @@ HRESULT UnregisterFileHandlers() {
     if (FAILED(thumbnail)) result = thumbnail;
     if (FAILED(preview)) result = preview;
   }
+  const HRESULT progIdPreview = DeleteTree(HKEY_CURRENT_USER,
+    std::wstring(L"Software\\Classes\\") + kProgId + L"\\shellex\\" + kPreviewHandler);
+  if (FAILED(progIdPreview)) result = progIdPreview;
   DeleteTree(HKEY_CURRENT_USER, GuidKey(kThumbnailClsid));
   DeleteTree(HKEY_CURRENT_USER, GuidKey(kPreviewClsid));
   HKEY handlers = nullptr;
