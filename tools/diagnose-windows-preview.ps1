@@ -2,7 +2,9 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$FilePath,
 
-  [string]$OutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'preview-diagnostics.txt')
+  [string]$OutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'preview-diagnostics.txt'),
+
+  [switch]$EnableTrace
 )
 
 $ErrorActionPreference = 'Continue'
@@ -10,6 +12,11 @@ $previewClsid = '{5199AC8D-A310-4BD1-A567-843DC7D05A3E}'
 $previewHandler = '{8895B1C6-B41F-4C1C-A562-0D564250836F}'
 $thumbnailHandler = '{E357FCCD-A995-4576-B01F-234630154E96}'
 $lines = [System.Collections.Generic.List[string]]::new()
+
+if ($EnableTrace) {
+  New-Item 'HKCU:\Software\Schemy' -Force | Out-Null
+  New-ItemProperty 'HKCU:\Software\Schemy' -Name PreviewTrace -PropertyType DWord -Value 1 -Force | Out-Null
+}
 
 function Add-Line([object]$Value = '') {
   $lines.Add([string]$Value)

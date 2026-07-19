@@ -49,6 +49,10 @@ struct PreviewCompletion {
 };
 
 void TracePreview(const std::wstring& message) {
+  DWORD enabled = 0;
+  DWORD enabledSize = sizeof(enabled);
+  if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Schemy", L"PreviewTrace",
+      RRF_RT_REG_DWORD, nullptr, &enabled, &enabledSize) != ERROR_SUCCESS || enabled != 1) return;
   wchar_t temporaryDirectory[MAX_PATH]{};
   const DWORD directoryLength = GetTempPathW(MAX_PATH, temporaryDirectory);
   if (!directoryLength || directoryLength >= MAX_PATH) return;

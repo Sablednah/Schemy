@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <iterator>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -17,6 +18,10 @@ constexpr size_t kMaximumPngBytes = 64ULL * 1024ULL * 1024ULL;
 constexpr DWORD kRenderTimeoutMs = 25'000;
 
 void Trace(const std::wstring& message) {
+  DWORD enabled = 0;
+  DWORD enabledSize = sizeof(enabled);
+  if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Schemy", L"PreviewTrace",
+      RRF_RT_REG_DWORD, nullptr, &enabled, &enabledSize) != ERROR_SUCCESS || enabled != 1) return;
   wchar_t temporaryDirectory[MAX_PATH]{};
   const DWORD directoryLength = GetTempPathW(MAX_PATH, temporaryDirectory);
   if (!directoryLength || directoryLength >= MAX_PATH) return;
@@ -344,7 +349,6 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, wchar_t* commandLine, int) {
     CloseHandle(mutex);
     return 2;
   }
-
   const std::wstring sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;" + sidString +
     L")S:(ML;;NW;;;LW)";
   PSECURITY_DESCRIPTOR descriptor = nullptr;
@@ -354,6 +358,11 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, wchar_t* commandLine, int) {
     CloseHandle(mutex);
     return 2;
   }
+  std::thread startupRepair([shutdown]() {
+    if (WaitForSingleObject(shutdown, 15'000) == WAIT_TIMEOUT && !RegisterStartup()) {
+      Trace(L"delayed startup registration failed error=" + std::to_wstring(GetLastError()));
+    }
+  });
   SECURITY_ATTRIBUTES security{ sizeof(security), descriptor, FALSE };
   Trace(L"broker started sid=" + sidString);
 
@@ -369,12 +378,15 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, wchar_t* commandLine, int) {
     if (connected && WaitForSingleObject(shutdown, 0) != WAIT_OBJECT_0 &&
         ValidateClient(pipe, userSid.data())) {
       HandleRequest(pipe);
+      RegisterStartup();
     }
     DisconnectNamedPipe(pipe);
     CloseHandle(pipe);
   }
 
   Trace(L"broker stopped");
+  SetEvent(shutdown);
+  startupRepair.join();
   LocalFree(descriptor);
   CloseHandle(shutdown);
   CloseHandle(mutex);
