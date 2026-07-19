@@ -564,14 +564,37 @@ private:
       IShellItemImageFactory* imageFactory = nullptr;
       HRESULT result = item_->QueryInterface(IID_PPV_ARGS(&imageFactory));
       if (SUCCEEDED(result)) {
-        const SIZE dimensions{ static_cast<LONG>(size), static_cast<LONG>(size) };
-        result = imageFactory->GetImage(dimensions,
-          static_cast<SIIGBF>(SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK), bitmap);
+        const UINT candidateSizes[] = { size, 256, 128, 64, 32 };
+        result = HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+        for (size_t index = 0; index < sizeof(candidateSizes) / sizeof(candidateSizes[0]); ++index) {
+          const UINT candidateSize = candidateSizes[index];
+          bool alreadyTried = false;
+          for (size_t previous = 0; previous < index; ++previous) {
+            if (candidateSizes[previous] == candidateSize) {
+              alreadyTried = true;
+              break;
+            }
+          }
+          if (alreadyTried) continue;
+
+          const SIZE dimensions{
+            static_cast<LONG>(candidateSize), static_cast<LONG>(candidateSize)
+          };
+          result = imageFactory->GetImage(dimensions,
+            static_cast<SIIGBF>(SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK |
+              SIIGBF_INCACHEONLY), bitmap);
+          TracePreview(L"thumbnail cache-only GetImage size=" +
+            std::to_wstring(candidateSize) + L" hr=" +
+            std::to_wstring(static_cast<unsigned long>(result)) + L" bitmap=" +
+            std::to_wstring(reinterpret_cast<UINT_PTR>(*bitmap)));
+          if (SUCCEEDED(result) && *bitmap) break;
+          if (*bitmap) {
+            DeleteObject(*bitmap);
+            *bitmap = nullptr;
+          }
+        }
       }
       SafeRelease(imageFactory);
-      TracePreview(L"thumbnail cache GetImage hr=" +
-        std::to_wstring(static_cast<unsigned long>(result)) + L" bitmap=" +
-        std::to_wstring(reinterpret_cast<UINT_PTR>(*bitmap)));
       return result;
     }
 
