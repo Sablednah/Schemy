@@ -403,12 +403,15 @@ public:
     if (!rect) return E_POINTER;
     parent_ = parent;
     rect_ = *rect;
+    const BOOL validParent = IsWindow(parent_);
+    BOOL readClientRect = FALSE;
     if (parent_ && (rect_.right <= rect_.left || rect_.bottom <= rect_.top)) {
-      GetClientRect(parent_, &rect_);
+      readClientRect = GetClientRect(parent_, &rect_);
     }
     if (kind_ == HandlerKind::Preview) TracePreview(L"SetWindow parent=" +
       std::to_wstring(reinterpret_cast<UINT_PTR>(parent_)) + L" rect=" +
-      std::to_wstring(rect_.right - rect_.left) + L"x" + std::to_wstring(rect_.bottom - rect_.top));
+      std::to_wstring(rect_.right - rect_.left) + L"x" + std::to_wstring(rect_.bottom - rect_.top) +
+      L" valid=" + std::to_wstring(validParent) + L" clientRect=" + std::to_wstring(readClientRect));
     if (window_) {
       SetParent(window_, parent_);
       ResizePreview();
@@ -434,18 +437,27 @@ public:
     if (window_) return S_OK;
     const UINT width = static_cast<UINT>(std::max<LONG>(1, rect_.right - rect_.left));
     const UINT height = static_cast<UINT>(std::max<LONG>(1, rect_.bottom - rect_.top));
+    window_ = CreateWindowExW(0, kWindowClass, L"", WS_CHILD | WS_VISIBLE,
+      rect_.left, rect_.top, width, height, parent_, nullptr, g_instance, this);
+    if (!window_) {
+      const HRESULT result = HRESULT_FROM_WIN32(GetLastError());
+      TracePreview(L"DoPreview window creation failed hr=" +
+        std::to_wstring(static_cast<unsigned long>(result)));
+      return result;
+    }
+    TracePreview(L"DoPreview window created=" +
+      std::to_wstring(reinterpret_cast<UINT_PTR>(window_)));
+
     const HRESULT rendered = Render(std::clamp<UINT>(std::max(width, height), 256, 1024), &previewBitmap_);
     if (FAILED(rendered)) {
       TracePreview(L"DoPreview render failed hr=" + std::to_wstring(static_cast<unsigned long>(rendered)));
+      DestroyWindow(window_);
+      window_ = nullptr;
       return rendered;
     }
-    window_ = CreateWindowExW(0, kWindowClass, L"", WS_CHILD | WS_VISIBLE,
-      rect_.left, rect_.top, width, height, parent_, nullptr, g_instance, this);
-    const HRESULT result = window_ ? S_OK : HRESULT_FROM_WIN32(GetLastError());
-    if (window_) InvalidateRect(window_, nullptr, FALSE);
-    TracePreview(L"DoPreview window=" + std::to_wstring(reinterpret_cast<UINT_PTR>(window_)) +
-      L" hr=" + std::to_wstring(static_cast<unsigned long>(result)));
-    return result;
+    InvalidateRect(window_, nullptr, FALSE);
+    TracePreview(L"DoPreview completed");
+    return S_OK;
   }
 
   IFACEMETHODIMP Unload() override {
