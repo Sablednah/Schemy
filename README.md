@@ -101,3 +101,7 @@ The first preview normally takes a few seconds because the renderer starts on de
 For development diagnostics, run `tools/diagnose-windows-preview.ps1` with `-EnableTrace`, then restart Explorer. This opt-in setting writes `SchemyPreview.log` and `SchemyPreviewBroker.log` beneath the current user's temporary directory. Remove `HKCU\Software\Schemy\PreviewTrace` to turn tracing off again.
 
 This component is installed only on Windows. The macOS and Linux packages are unchanged and continue to provide file association and direct opening through their native file managers.
+
+## License
+
+Schemy is open-source software available under the [MIT License](LICENSE).
