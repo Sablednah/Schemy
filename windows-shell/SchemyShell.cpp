@@ -4,6 +4,7 @@
 #include <thumbcache.h>
 #include <wincodec.h>
 #include <shlwapi.h>
+#include <sddl.h>
 #include <initguid.h>
 
 #include <algorithm>
@@ -32,6 +33,8 @@ constexpr wchar_t kExtensions[][11] = { L".schematic", L".schem", L".nbt", L".li
 constexpr size_t kMaximumStructureBytes = 512ULL * 1024ULL * 1024ULL;
 constexpr size_t kMaximumPngBytes = 64ULL * 1024ULL * 1024ULL;
 constexpr DWORD kRenderTimeoutMs = 25'000;
+constexpr std::uint32_t kBrokerMagic = 0x59484353;
+constexpr std::uint32_t kBrokerVersion = 1;
 
 HINSTANCE g_instance = nullptr;
 std::atomic<long> g_objects = 0;
@@ -121,6 +124,30 @@ std::wstring SchemyExecutablePath() {
   path.resize(wcslen(path.c_str()));
   path += L"\\Schemy.exe";
   return path;
+}
+
+std::wstring CurrentUserSidString() {
+  HANDLE token = nullptr;
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return {};
+  DWORD required = 0;
+  GetTokenInformation(token, TokenUser, nullptr, 0, &required);
+  std::vector<std::uint8_t> buffer(required);
+  if (!required || !GetTokenInformation(token, TokenUser, buffer.data(), required, &required)) {
+    CloseHandle(token);
+    return {};
+  }
+  CloseHandle(token);
+  const auto user = reinterpret_cast<const TOKEN_USER*>(buffer.data());
+  wchar_t* sid = nullptr;
+  if (!ConvertSidToStringSidW(user->User.Sid, &sid)) return {};
+  std::wstring value(sid);
+  LocalFree(sid);
+  return value;
+}
+
+std::wstring BrokerPipeName() {
+  const std::wstring sid = CurrentUserSidString();
+  return sid.empty() ? std::wstring{} : L"\\\\.\\pipe\\SchemyPreviewBroker-" + sid;
 }
 
 bool ReadStructureStream(IStream* stream, std::vector<std::uint8_t>& bytes) {
@@ -276,6 +303,58 @@ bool RunRenderer(const std::vector<std::uint8_t>& input, UINT size, std::vector<
     png[0] == 0x89 && png[1] == 'P' && png[2] == 'N' && png[3] == 'G';
 }
 
+bool RunBrokerRenderer(const std::vector<std::uint8_t>& input, UINT size,
+                       std::vector<std::uint8_t>& png) {
+  const std::wstring pipeName = BrokerPipeName();
+  if (pipeName.empty()) {
+    TracePreview(L"broker pipe name unavailable");
+    return false;
+  }
+
+  const ULONGLONG deadline = GetTickCount64() + kRenderTimeoutMs;
+  HANDLE pipe = INVALID_HANDLE_VALUE;
+  while (GetTickCount64() < deadline) {
+    pipe = CreateFileW(pipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (pipe != INVALID_HANDLE_VALUE) break;
+    const DWORD error = GetLastError();
+    if (error != ERROR_PIPE_BUSY && error != ERROR_FILE_NOT_FOUND) {
+      TracePreview(L"broker connection failed error=" + std::to_wstring(error));
+      return false;
+    }
+    WaitNamedPipeW(pipeName.c_str(), 250);
+  }
+  if (pipe == INVALID_HANDLE_VALUE) {
+    TracePreview(L"broker unavailable error=" + std::to_wstring(GetLastError()));
+    return false;
+  }
+
+  DWORD mode = PIPE_READMODE_BYTE | PIPE_NOWAIT;
+  SetNamedPipeHandleState(pipe, &mode, nullptr, nullptr);
+  const std::uint64_t inputLength = input.size();
+  const std::uint32_t requestedSize = std::clamp<std::uint32_t>(size, 128, 1024);
+  std::uint32_t status = ERROR_GEN_FAILURE;
+  std::uint64_t outputLength = 0;
+  bool success =
+    WritePipe(pipe, &kBrokerMagic, sizeof(kBrokerMagic), deadline) &&
+    WritePipe(pipe, &kBrokerVersion, sizeof(kBrokerVersion), deadline) &&
+    WritePipe(pipe, &requestedSize, sizeof(requestedSize), deadline) &&
+    WritePipe(pipe, &inputLength, sizeof(inputLength), deadline) &&
+    WritePipe(pipe, input.data(), input.size(), deadline) &&
+    ReadPipe(pipe, &status, sizeof(status), deadline) &&
+    ReadPipe(pipe, &outputLength, sizeof(outputLength), deadline) &&
+    status == ERROR_SUCCESS && outputLength > 8 && outputLength <= kMaximumPngBytes;
+  TracePreview(L"broker response success=" + std::to_wstring(success) + L" status=" +
+    std::to_wstring(status) + L" output=" + std::to_wstring(outputLength));
+  if (success) {
+    png.resize(static_cast<size_t>(outputLength));
+    success = ReadPipe(pipe, png.data(), png.size(), deadline);
+  }
+  CloseIfValid(pipe);
+  return success && png.size() > 8 && png[0] == 0x89 && png[1] == 'P' &&
+    png[2] == 'N' && png[3] == 'G';
+}
+
 HRESULT DecodePng(const std::vector<std::uint8_t>& png, HBITMAP* bitmap) {
   *bitmap = nullptr;
   IWICImagingFactory* factory = nullptr;
@@ -328,7 +407,6 @@ HRESULT DecodePng(const std::vector<std::uint8_t>& png, HBITMAP* bitmap) {
 enum class HandlerKind { Thumbnail, Preview };
 
 class SchemyHandler final : public IInitializeWithStream,
-                            public IInitializeWithItem,
                             public IThumbnailProvider,
                             public IPreviewHandler,
                             public IOleWindow,
@@ -341,12 +419,9 @@ public:
     if (!object) return E_POINTER;
     *object = nullptr;
     if (iid == IID_IUnknown) {
-      if (kind_ == HandlerKind::Thumbnail) *object = static_cast<IInitializeWithStream*>(this);
-      else *object = static_cast<IInitializeWithItem*>(this);
-    } else if (kind_ == HandlerKind::Thumbnail && iid == IID_IInitializeWithStream) {
       *object = static_cast<IInitializeWithStream*>(this);
-    } else if (kind_ == HandlerKind::Preview && iid == IID_IInitializeWithItem) {
-      *object = static_cast<IInitializeWithItem*>(this);
+    } else if (iid == IID_IInitializeWithStream) {
+      *object = static_cast<IInitializeWithStream*>(this);
     } else if (kind_ == HandlerKind::Thumbnail && iid == IID_IThumbnailProvider) {
       *object = static_cast<IThumbnailProvider*>(this);
     } else if (kind_ == HandlerKind::Preview && iid == IID_IPreviewHandler) {
@@ -372,21 +447,11 @@ public:
   }
 
   IFACEMETHODIMP Initialize(IStream* stream, DWORD) override {
-    if (kind_ != HandlerKind::Thumbnail) return E_NOINTERFACE;
     if (!stream) return E_INVALIDARG;
     if (stream_) return HRESULT_FROM_WIN32(ERROR_ALREADY_INITIALIZED);
     stream_ = stream;
     stream_->AddRef();
-    return S_OK;
-  }
-
-  IFACEMETHODIMP Initialize(IShellItem* item, DWORD) override {
-    if (kind_ != HandlerKind::Preview) return E_NOINTERFACE;
-    if (!item) return E_INVALIDARG;
-    if (item_) return HRESULT_FROM_WIN32(ERROR_ALREADY_INITIALIZED);
-    item_ = item;
-    item_->AddRef();
-    TracePreview(L"InitializeWithItem succeeded");
+    if (kind_ == HandlerKind::Preview) TracePreview(L"InitializeWithStream succeeded");
     return S_OK;
   }
 
@@ -433,7 +498,7 @@ public:
 
   IFACEMETHODIMP DoPreview() override {
     TracePreview(L"DoPreview begin");
-    if (!item_ || !parent_) return E_UNEXPECTED;
+    if (!stream_ || !parent_) return E_UNEXPECTED;
     if (window_) return S_OK;
     const UINT width = static_cast<UINT>(std::max<LONG>(1, rect_.right - rect_.left));
     const UINT height = static_cast<UINT>(std::max<LONG>(1, rect_.bottom - rect_.top));
@@ -466,7 +531,6 @@ public:
     if (previewBitmap_) DeleteObject(previewBitmap_);
     previewBitmap_ = nullptr;
     SafeRelease(stream_);
-    SafeRelease(item_);
     return S_OK;
   }
 
@@ -560,42 +624,17 @@ private:
 
   HRESULT Render(UINT size, HBITMAP* bitmap) {
     if (kind_ == HandlerKind::Preview) {
-      if (!item_) return E_UNEXPECTED;
-      IShellItemImageFactory* imageFactory = nullptr;
-      HRESULT result = item_->QueryInterface(IID_PPV_ARGS(&imageFactory));
-      if (SUCCEEDED(result)) {
-        const UINT candidateSizes[] = { size, 256, 128, 64, 32 };
-        result = HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
-        for (size_t index = 0; index < sizeof(candidateSizes) / sizeof(candidateSizes[0]); ++index) {
-          const UINT candidateSize = candidateSizes[index];
-          bool alreadyTried = false;
-          for (size_t previous = 0; previous < index; ++previous) {
-            if (candidateSizes[previous] == candidateSize) {
-              alreadyTried = true;
-              break;
-            }
-          }
-          if (alreadyTried) continue;
-
-          const SIZE dimensions{
-            static_cast<LONG>(candidateSize), static_cast<LONG>(candidateSize)
-          };
-          result = imageFactory->GetImage(dimensions,
-            static_cast<SIIGBF>(SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK |
-              SIIGBF_INCACHEONLY), bitmap);
-          TracePreview(L"thumbnail cache-only GetImage size=" +
-            std::to_wstring(candidateSize) + L" hr=" +
-            std::to_wstring(static_cast<unsigned long>(result)) + L" bitmap=" +
-            std::to_wstring(reinterpret_cast<UINT_PTR>(*bitmap)));
-          if (SUCCEEDED(result) && *bitmap) break;
-          if (*bitmap) {
-            DeleteObject(*bitmap);
-            *bitmap = nullptr;
-          }
-        }
+      std::vector<std::uint8_t> structure;
+      if (!ReadStructureStream(stream_, structure)) {
+        TracePreview(L"ReadStructureStream failed");
+        return E_FAIL;
       }
-      SafeRelease(imageFactory);
-      return result;
+      TracePreview(L"stream read bytes=" + std::to_wstring(structure.size()));
+      std::vector<std::uint8_t> png;
+      if (!RunBrokerRenderer(structure, size, png)) return E_FAIL;
+      const HRESULT decoded = DecodePng(png, bitmap);
+      TracePreview(L"DecodePng hr=" + std::to_wstring(static_cast<unsigned long>(decoded)));
+      return decoded;
     }
 
     if (!stream_) return E_UNEXPECTED;
@@ -621,7 +660,6 @@ private:
   long references_ = 1;
   HandlerKind kind_;
   IStream* stream_ = nullptr;
-  IShellItem* item_ = nullptr;
   IUnknown* site_ = nullptr;
   HWND parent_ = nullptr;
   HWND window_ = nullptr;

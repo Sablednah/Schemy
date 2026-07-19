@@ -1,6 +1,6 @@
 {
   "name": "schemy",
-  "version": "0.8.7",
+  "version": "0.8.8",
   "packageManager": "pnpm@11.9.0",
   "description": "Fast cross-platform 3D viewer for Minecraft .schematic files",
   "author": {
@@ -40,7 +40,7 @@
     "mac": { "category": "public.app-category.graphics-design", "target": ["dmg"], "fileAssociations": [{"ext": ["schematic", "schem", "nbt", "litematic"], "name": "Minecraft Structure", "role": "Viewer"}] },
     "win": {
       "target": ["nsis"],
-      "extraResources": [{ "from": "windows-shell/out", "to": "shell", "filter": ["SchemyShell.dll"] }],
+      "extraResources": [{ "from": "windows-shell/out", "to": "shell", "filter": ["SchemyShell.dll", "SchemyPreviewBroker.exe"] }],
       "fileAssociations": [{"ext": ["schematic", "schem", "nbt", "litematic"], "name": "Minecraft Structure", "role": "Viewer"}]
     },
     "nsis": { "include": "build/installer.nsh" },
