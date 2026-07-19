@@ -15,6 +15,7 @@ Open a structure from the File menu, drag it into the window, or associate a sup
 - Interactive orbit, pan, and zoom controls
 - Native Windows, macOS, and Linux packages
 - Double-click file associations
+- Windows Explorer thumbnails and Preview pane integration
 - File picker and drag-and-drop opening
 - Efficient instanced rendering for large structures
 - Procedural geometry for common non-cube Minecraft blocks
@@ -87,9 +88,10 @@ The macOS artifact is currently unsigned. macOS users must explicitly allow it t
 - More specialised and resource-pack-defined block geometry
 - Optional user-supplied Minecraft resource packs
 - Block entity and entity previews
-- Windows Explorer thumbnails and Preview pane integration
 - Render-to-image export
 
 ## Windows Explorer previews
 
-Explorer thumbnails and its Preview pane require a signed native COM shell extension. File association and direct opening are supported today; shell previews are planned as a separate Windows component.
+The Windows installer includes a native Explorer extension for all supported formats. It generates model thumbnails for icon views and a larger static render in Explorer's Preview pane. The extension reuses Schemy's renderer out of process, keeping the native shell component small and isolated from the file parser and 3D engine.
+
+This component is installed only on Windows. The macOS and Linux packages are unchanged and continue to provide file association and direct opening through their native file managers.
