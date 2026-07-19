@@ -57,6 +57,16 @@ HRESULT SetString(HKEY root, const std::wstring& keyPath, const wchar_t* name, c
   return HRESULT_FROM_WIN32(written);
 }
 
+HRESULT SetDword(HKEY root, const std::wstring& keyPath, const wchar_t* name, DWORD value) {
+  HKEY key = nullptr;
+  const LONG opened = RegCreateKeyExW(root, keyPath.c_str(), 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, nullptr);
+  if (opened != ERROR_SUCCESS) return HRESULT_FROM_WIN32(opened);
+  const LONG written = RegSetValueExW(key, name, 0, REG_DWORD,
+    reinterpret_cast<const BYTE*>(&value), sizeof(value));
+  RegCloseKey(key);
+  return HRESULT_FROM_WIN32(written);
+}
+
 HRESULT DeleteTree(HKEY root, const std::wstring& keyPath) {
   const LONG result = RegDeleteTreeW(root, keyPath.c_str());
   return result == ERROR_SUCCESS || result == ERROR_FILE_NOT_FOUND ? S_OK : HRESULT_FROM_WIN32(result);
@@ -538,6 +548,10 @@ HRESULT RegisterHandler(const wchar_t* clsid, const wchar_t* name, bool preview)
   if (SUCCEEDED(result)) result = SetString(HKEY_CURRENT_USER, GuidKey(clsid, L"\\InprocServer32"), nullptr, module);
   if (SUCCEEDED(result)) result = SetString(HKEY_CURRENT_USER, GuidKey(clsid, L"\\InprocServer32"), L"ThreadingModel", L"Apartment");
   if (preview && SUCCEEDED(result)) result = SetString(HKEY_CURRENT_USER, GuidKey(clsid), L"AppID", kPreviewHostAppId);
+  // Schemy renders out of process with Electron. A low-integrity Preview Host cannot
+  // launch that renderer reliably, so use Windows' normal-integrity preview host.
+  if (preview && SUCCEEDED(result)) result = SetDword(HKEY_CURRENT_USER, GuidKey(clsid),
+    L"DisableLowILProcessIsolation", 1);
   return result;
 }
 
