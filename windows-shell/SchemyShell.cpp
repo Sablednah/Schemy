@@ -618,7 +618,7 @@ public:
       DeleteDC(memory);
     } else if (loading_) {
       SetBkMode(dc, TRANSPARENT);
-      SetTextColor(dc, RGB(196, 207, 196));
+      ::SetTextColor(dc, RGB(196, 207, 196));
       HGDIOBJ previousFont = SelectObject(dc, GetStockObject(DEFAULT_GUI_FONT));
       DrawTextW(dc, L"Loading...", -1, &client,
         DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
