@@ -88,19 +88,20 @@ HRESULT SetString(HKEY root, const std::wstring& keyPath, const wchar_t* name, c
   return HRESULT_FROM_WIN32(written);
 }
 
-HRESULT SetDword(HKEY root, const std::wstring& keyPath, const wchar_t* name, DWORD value) {
-  HKEY key = nullptr;
-  const LONG opened = RegCreateKeyExW(root, keyPath.c_str(), 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, nullptr);
-  if (opened != ERROR_SUCCESS) return HRESULT_FROM_WIN32(opened);
-  const LONG written = RegSetValueExW(key, name, 0, REG_DWORD,
-    reinterpret_cast<const BYTE*>(&value), sizeof(value));
-  RegCloseKey(key);
-  return HRESULT_FROM_WIN32(written);
-}
-
 HRESULT DeleteTree(HKEY root, const std::wstring& keyPath) {
   const LONG result = RegDeleteTreeW(root, keyPath.c_str());
   return result == ERROR_SUCCESS || result == ERROR_FILE_NOT_FOUND ? S_OK : HRESULT_FROM_WIN32(result);
+}
+
+HRESULT DeleteValueIfPresent(HKEY root, const std::wstring& keyPath, const wchar_t* name) {
+  HKEY key = nullptr;
+  const LONG opened = RegOpenKeyExW(root, keyPath.c_str(), 0, KEY_SET_VALUE, &key);
+  if (opened == ERROR_FILE_NOT_FOUND) return S_OK;
+  if (opened != ERROR_SUCCESS) return HRESULT_FROM_WIN32(opened);
+  const LONG removed = RegDeleteValueW(key, name);
+  RegCloseKey(key);
+  return removed == ERROR_SUCCESS || removed == ERROR_FILE_NOT_FOUND
+    ? S_OK : HRESULT_FROM_WIN32(removed);
 }
 
 std::wstring ModulePath() {
@@ -327,6 +328,7 @@ HRESULT DecodePng(const std::vector<std::uint8_t>& png, HBITMAP* bitmap) {
 enum class HandlerKind { Thumbnail, Preview };
 
 class SchemyHandler final : public IInitializeWithStream,
+                            public IInitializeWithItem,
                             public IThumbnailProvider,
                             public IPreviewHandler,
                             public IOleWindow,
@@ -338,8 +340,13 @@ public:
   IFACEMETHODIMP QueryInterface(REFIID iid, void** object) override {
     if (!object) return E_POINTER;
     *object = nullptr;
-    if (iid == IID_IUnknown || iid == IID_IInitializeWithStream) {
+    if (iid == IID_IUnknown) {
+      if (kind_ == HandlerKind::Thumbnail) *object = static_cast<IInitializeWithStream*>(this);
+      else *object = static_cast<IInitializeWithItem*>(this);
+    } else if (kind_ == HandlerKind::Thumbnail && iid == IID_IInitializeWithStream) {
       *object = static_cast<IInitializeWithStream*>(this);
+    } else if (kind_ == HandlerKind::Preview && iid == IID_IInitializeWithItem) {
+      *object = static_cast<IInitializeWithItem*>(this);
     } else if (kind_ == HandlerKind::Thumbnail && iid == IID_IThumbnailProvider) {
       *object = static_cast<IThumbnailProvider*>(this);
     } else if (kind_ == HandlerKind::Preview && iid == IID_IPreviewHandler) {
@@ -365,11 +372,21 @@ public:
   }
 
   IFACEMETHODIMP Initialize(IStream* stream, DWORD) override {
+    if (kind_ != HandlerKind::Thumbnail) return E_NOINTERFACE;
     if (!stream) return E_INVALIDARG;
     if (stream_) return HRESULT_FROM_WIN32(ERROR_ALREADY_INITIALIZED);
     stream_ = stream;
     stream_->AddRef();
-    if (kind_ == HandlerKind::Preview) TracePreview(L"Initialize succeeded");
+    return S_OK;
+  }
+
+  IFACEMETHODIMP Initialize(IShellItem* item, DWORD) override {
+    if (kind_ != HandlerKind::Preview) return E_NOINTERFACE;
+    if (!item) return E_INVALIDARG;
+    if (item_) return HRESULT_FROM_WIN32(ERROR_ALREADY_INITIALIZED);
+    item_ = item;
+    item_->AddRef();
+    TracePreview(L"InitializeWithItem succeeded");
     return S_OK;
   }
 
@@ -386,6 +403,9 @@ public:
     if (!rect) return E_POINTER;
     parent_ = parent;
     rect_ = *rect;
+    if (parent_ && (rect_.right <= rect_.left || rect_.bottom <= rect_.top)) {
+      GetClientRect(parent_, &rect_);
+    }
     if (kind_ == HandlerKind::Preview) TracePreview(L"SetWindow parent=" +
       std::to_wstring(reinterpret_cast<UINT_PTR>(parent_)) + L" rect=" +
       std::to_wstring(rect_.right - rect_.left) + L"x" + std::to_wstring(rect_.bottom - rect_.top));
@@ -399,13 +419,18 @@ public:
   IFACEMETHODIMP SetRect(const RECT* rect) override {
     if (!rect) return E_POINTER;
     rect_ = *rect;
+    if (parent_ && (rect_.right <= rect_.left || rect_.bottom <= rect_.top)) {
+      GetClientRect(parent_, &rect_);
+    }
+    if (kind_ == HandlerKind::Preview) TracePreview(L"SetRect rect=" +
+      std::to_wstring(rect_.right - rect_.left) + L"x" + std::to_wstring(rect_.bottom - rect_.top));
     ResizePreview();
     return S_OK;
   }
 
   IFACEMETHODIMP DoPreview() override {
     TracePreview(L"DoPreview begin");
-    if (!stream_ || !parent_) return E_UNEXPECTED;
+    if (!item_ || !parent_) return E_UNEXPECTED;
     if (window_) return S_OK;
     const UINT width = static_cast<UINT>(std::max<LONG>(1, rect_.right - rect_.left));
     const UINT height = static_cast<UINT>(std::max<LONG>(1, rect_.bottom - rect_.top));
@@ -417,6 +442,7 @@ public:
     window_ = CreateWindowExW(0, kWindowClass, L"", WS_CHILD | WS_VISIBLE,
       rect_.left, rect_.top, width, height, parent_, nullptr, g_instance, this);
     const HRESULT result = window_ ? S_OK : HRESULT_FROM_WIN32(GetLastError());
+    if (window_) InvalidateRect(window_, nullptr, FALSE);
     TracePreview(L"DoPreview window=" + std::to_wstring(reinterpret_cast<UINT_PTR>(window_)) +
       L" hr=" + std::to_wstring(static_cast<unsigned long>(result)));
     return result;
@@ -428,6 +454,7 @@ public:
     if (previewBitmap_) DeleteObject(previewBitmap_);
     previewBitmap_ = nullptr;
     SafeRelease(stream_);
+    SafeRelease(item_);
     return S_OK;
   }
 
@@ -520,6 +547,22 @@ private:
   }
 
   HRESULT Render(UINT size, HBITMAP* bitmap) {
+    if (kind_ == HandlerKind::Preview) {
+      if (!item_) return E_UNEXPECTED;
+      IShellItemImageFactory* imageFactory = nullptr;
+      HRESULT result = item_->QueryInterface(IID_PPV_ARGS(&imageFactory));
+      if (SUCCEEDED(result)) {
+        const SIZE dimensions{ static_cast<LONG>(size), static_cast<LONG>(size) };
+        result = imageFactory->GetImage(dimensions,
+          static_cast<SIIGBF>(SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK), bitmap);
+      }
+      SafeRelease(imageFactory);
+      TracePreview(L"thumbnail cache GetImage hr=" +
+        std::to_wstring(static_cast<unsigned long>(result)) + L" bitmap=" +
+        std::to_wstring(reinterpret_cast<UINT_PTR>(*bitmap)));
+      return result;
+    }
+
     if (!stream_) return E_UNEXPECTED;
     std::vector<std::uint8_t> structure;
     if (!ReadStructureStream(stream_, structure)) {
@@ -543,6 +586,7 @@ private:
   long references_ = 1;
   HandlerKind kind_;
   IStream* stream_ = nullptr;
+  IShellItem* item_ = nullptr;
   IUnknown* site_ = nullptr;
   HWND parent_ = nullptr;
   HWND window_ = nullptr;
@@ -612,10 +656,8 @@ HRESULT RegisterHandler(const wchar_t* clsid, const wchar_t* name, bool preview)
   if (SUCCEEDED(result)) result = SetString(HKEY_CURRENT_USER, GuidKey(clsid, L"\\InprocServer32"), nullptr, module);
   if (SUCCEEDED(result)) result = SetString(HKEY_CURRENT_USER, GuidKey(clsid, L"\\InprocServer32"), L"ThreadingModel", L"Apartment");
   if (preview && SUCCEEDED(result)) result = SetString(HKEY_CURRENT_USER, GuidKey(clsid), L"AppID", kPreviewHostAppId);
-  // Schemy renders out of process with Electron. A low-integrity Preview Host cannot
-  // launch that renderer reliably, so use Windows' normal-integrity preview host.
-  if (preview && SUCCEEDED(result)) result = SetDword(HKEY_CURRENT_USER, GuidKey(clsid),
-    L"DisableLowILProcessIsolation", 1);
+  if (preview && SUCCEEDED(result)) result = DeleteValueIfPresent(HKEY_CURRENT_USER,
+    GuidKey(clsid), L"DisableLowILProcessIsolation");
   return result;
 }
 
