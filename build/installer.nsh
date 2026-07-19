@@ -9,7 +9,7 @@
   ExecWait '"$WINDIR\Sysnative\regsvr32.exe" /s "$INSTDIR\resources\shell\SchemyShell.dll"'
   shell_registration_done:
   IfFileExists "$INSTDIR\resources\shell\SchemyPreviewBroker.exe" 0 broker_start_done
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Schemy Preview Broker" '$"$INSTDIR\resources\shell\SchemyPreviewBroker.exe$"'
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Schemy Preview Broker" '"$INSTDIR\resources\shell\SchemyPreviewBroker.exe"'
   Exec '"$INSTDIR\resources\shell\SchemyPreviewBroker.exe"'
   broker_start_done:
 !macroend
