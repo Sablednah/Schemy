@@ -40,7 +40,9 @@ void TracePreview(const std::wstring& message) {
   wchar_t temporaryDirectory[MAX_PATH]{};
   const DWORD directoryLength = GetTempPathW(MAX_PATH, temporaryDirectory);
   if (!directoryLength || directoryLength >= MAX_PATH) return;
-  const std::wstring logPath = std::wstring(temporaryDirectory) + L"SchemyPreview.log";
+  const std::wstring lowDirectory = std::wstring(temporaryDirectory) + L"Low";
+  CreateDirectoryW(lowDirectory.c_str(), nullptr);
+  const std::wstring logPath = lowDirectory + L"\\SchemyPreview.log";
 
   SYSTEMTIME now{};
   GetLocalTime(&now);
