@@ -36,6 +36,34 @@ constexpr DWORD kRenderTimeoutMs = 25'000;
 HINSTANCE g_instance = nullptr;
 std::atomic<long> g_objects = 0;
 
+void TracePreview(const std::wstring& message) {
+  wchar_t temporaryDirectory[MAX_PATH]{};
+  const DWORD directoryLength = GetTempPathW(MAX_PATH, temporaryDirectory);
+  if (!directoryLength || directoryLength >= MAX_PATH) return;
+  const std::wstring logPath = std::wstring(temporaryDirectory) + L"SchemyPreview.log";
+
+  SYSTEMTIME now{};
+  GetLocalTime(&now);
+  wchar_t line[2048]{};
+  swprintf_s(line, L"%04u-%02u-%02u %02u:%02u:%02u.%03u pid=%lu tid=%lu %s\r\n",
+    now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond, now.wMilliseconds,
+    GetCurrentProcessId(), GetCurrentThreadId(), message.c_str());
+  const int characterCount = static_cast<int>(wcslen(line));
+  const int byteCount = WideCharToMultiByte(CP_UTF8, 0, line, characterCount,
+    nullptr, 0, nullptr, nullptr);
+  if (byteCount <= 0) return;
+  std::vector<char> utf8(static_cast<size_t>(byteCount));
+  WideCharToMultiByte(CP_UTF8, 0, line, characterCount, utf8.data(), byteCount, nullptr, nullptr);
+
+  HANDLE log = CreateFileW(logPath.c_str(), FILE_APPEND_DATA,
+    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_ALWAYS,
+    FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (log == INVALID_HANDLE_VALUE) return;
+  DWORD written = 0;
+  WriteFile(log, utf8.data(), static_cast<DWORD>(utf8.size()), &written, nullptr);
+  CloseHandle(log);
+}
+
 template <typename T>
 void SafeRelease(T*& value) {
   if (value) {
@@ -151,15 +179,24 @@ bool ReadPipe(HANDLE pipe, void* destination, size_t length, ULONGLONG deadline)
   return offset == length;
 }
 
-bool RunRenderer(const std::vector<std::uint8_t>& input, UINT size, std::vector<std::uint8_t>& png) {
+bool RunRenderer(const std::vector<std::uint8_t>& input, UINT size, std::vector<std::uint8_t>& png,
+                 bool trace) {
   const std::wstring executable = SchemyExecutablePath();
-  if (executable.empty() || GetFileAttributesW(executable.c_str()) == INVALID_FILE_ATTRIBUTES) return false;
+  if (trace) TracePreview(L"renderer path=" + executable + L" input=" +
+    std::to_wstring(input.size()) + L" target=" + std::to_wstring(size));
+  if (executable.empty() || GetFileAttributesW(executable.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    if (trace) TracePreview(L"renderer executable missing error=" + std::to_wstring(GetLastError()));
+    return false;
+  }
 
   const std::wstring pipeName = L"\\\\.\\pipe\\SchemyPreview-" + std::to_wstring(GetCurrentProcessId()) +
     L"-" + std::to_wstring(GetCurrentThreadId()) + L"-" + std::to_wstring(GetTickCount64());
   HANDLE pipe = CreateNamedPipeW(pipeName.c_str(), PIPE_ACCESS_DUPLEX,
     PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_NOWAIT, 1, 64 * 1024, 64 * 1024, kRenderTimeoutMs, nullptr);
-  if (pipe == INVALID_HANDLE_VALUE) return false;
+  if (pipe == INVALID_HANDLE_VALUE) {
+    if (trace) TracePreview(L"CreateNamedPipe failed error=" + std::to_wstring(GetLastError()));
+    return false;
+  }
 
   HANDLE nullError = INVALID_HANDLE_VALUE;
   SECURITY_ATTRIBUTES security{ sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
@@ -183,9 +220,11 @@ bool RunRenderer(const std::vector<std::uint8_t>& input, UINT size, std::vector<
     CREATE_NO_WINDOW, nullptr, nullptr, &startup, &process);
   CloseIfValid(nullError);
   if (!started) {
+    if (trace) TracePreview(L"CreateProcess failed error=" + std::to_wstring(GetLastError()));
     CloseIfValid(pipe);
     return false;
   }
+  if (trace) TracePreview(L"renderer process started pid=" + std::to_wstring(process.dwProcessId));
 
   const ULONGLONG deadline = GetTickCount64() + kRenderTimeoutMs;
   bool connected = false;
@@ -209,6 +248,8 @@ bool RunRenderer(const std::vector<std::uint8_t>& input, UINT size, std::vector<
     WritePipe(pipe, input.data(), input.size(), deadline) &&
     ReadPipe(pipe, &outputLength, sizeof(outputLength), deadline) &&
     outputLength > 8 && outputLength <= kMaximumPngBytes;
+  if (trace) TracePreview(L"pipe connected=" + std::to_wstring(connected) +
+    L" transfer=" + std::to_wstring(success) + L" output=" + std::to_wstring(outputLength));
   if (success) {
     png.resize(static_cast<size_t>(outputLength));
     success = ReadPipe(pipe, png.data(), png.size(), deadline);
@@ -226,6 +267,8 @@ bool RunRenderer(const std::vector<std::uint8_t>& input, UINT size, std::vector<
   GetExitCodeProcess(process.hProcess, &exitCode);
   CloseIfValid(process.hThread);
   CloseIfValid(process.hProcess);
+  if (trace) TracePreview(L"renderer completed success=" + std::to_wstring(success) +
+    L" exit=" + std::to_wstring(exitCode) + L" png=" + std::to_wstring(png.size()));
   return success && exitCode == 0 && png.size() > 8 &&
     png[0] == 0x89 && png[1] == 'P' && png[2] == 'N' && png[3] == 'G';
 }
@@ -324,6 +367,7 @@ public:
     if (stream_) return HRESULT_FROM_WIN32(ERROR_ALREADY_INITIALIZED);
     stream_ = stream;
     stream_->AddRef();
+    if (kind_ == HandlerKind::Preview) TracePreview(L"Initialize succeeded");
     return S_OK;
   }
 
@@ -340,6 +384,9 @@ public:
     if (!rect) return E_POINTER;
     parent_ = parent;
     rect_ = *rect;
+    if (kind_ == HandlerKind::Preview) TracePreview(L"SetWindow parent=" +
+      std::to_wstring(reinterpret_cast<UINT_PTR>(parent_)) + L" rect=" +
+      std::to_wstring(rect_.right - rect_.left) + L"x" + std::to_wstring(rect_.bottom - rect_.top));
     if (window_) {
       SetParent(window_, parent_);
       ResizePreview();
@@ -355,15 +402,22 @@ public:
   }
 
   IFACEMETHODIMP DoPreview() override {
+    TracePreview(L"DoPreview begin");
     if (!stream_ || !parent_) return E_UNEXPECTED;
     if (window_) return S_OK;
     const UINT width = static_cast<UINT>(std::max<LONG>(1, rect_.right - rect_.left));
     const UINT height = static_cast<UINT>(std::max<LONG>(1, rect_.bottom - rect_.top));
     const HRESULT rendered = Render(std::clamp<UINT>(std::max(width, height), 256, 1024), &previewBitmap_);
-    if (FAILED(rendered)) return rendered;
+    if (FAILED(rendered)) {
+      TracePreview(L"DoPreview render failed hr=" + std::to_wstring(static_cast<unsigned long>(rendered)));
+      return rendered;
+    }
     window_ = CreateWindowExW(0, kWindowClass, L"", WS_CHILD | WS_VISIBLE,
       rect_.left, rect_.top, width, height, parent_, nullptr, g_instance, this);
-    return window_ ? S_OK : HRESULT_FROM_WIN32(GetLastError());
+    const HRESULT result = window_ ? S_OK : HRESULT_FROM_WIN32(GetLastError());
+    TracePreview(L"DoPreview window=" + std::to_wstring(reinterpret_cast<UINT_PTR>(window_)) +
+      L" hr=" + std::to_wstring(static_cast<unsigned long>(result)));
+    return result;
   }
 
   IFACEMETHODIMP Unload() override {
@@ -466,10 +520,17 @@ private:
   HRESULT Render(UINT size, HBITMAP* bitmap) {
     if (!stream_) return E_UNEXPECTED;
     std::vector<std::uint8_t> structure;
-    if (!ReadStructureStream(stream_, structure)) return E_FAIL;
+    if (!ReadStructureStream(stream_, structure)) {
+      if (kind_ == HandlerKind::Preview) TracePreview(L"ReadStructureStream failed");
+      return E_FAIL;
+    }
+    if (kind_ == HandlerKind::Preview) TracePreview(L"stream read bytes=" + std::to_wstring(structure.size()));
     std::vector<std::uint8_t> png;
-    if (!RunRenderer(structure, size, png)) return E_FAIL;
-    return DecodePng(png, bitmap);
+    if (!RunRenderer(structure, size, png, kind_ == HandlerKind::Preview)) return E_FAIL;
+    const HRESULT decoded = DecodePng(png, bitmap);
+    if (kind_ == HandlerKind::Preview) TracePreview(L"DecodePng hr=" +
+      std::to_wstring(static_cast<unsigned long>(decoded)));
+    return decoded;
   }
 
   void ResizePreview() {
