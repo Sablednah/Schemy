@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <new>
 #include <string>
+#include <thread>
 #include <vector>
 
 // Separate classes keep thumbnail activation independent from PreviewHost.
@@ -35,9 +36,17 @@ constexpr size_t kMaximumPngBytes = 64ULL * 1024ULL * 1024ULL;
 constexpr DWORD kRenderTimeoutMs = 25'000;
 constexpr std::uint32_t kBrokerMagic = 0x59484353;
 constexpr std::uint32_t kBrokerVersion = 1;
+constexpr UINT kPreviewReadyMessage = WM_APP + 0x531;
 
 HINSTANCE g_instance = nullptr;
 std::atomic<long> g_objects = 0;
+
+class SchemyHandler;
+struct PreviewCompletion {
+  SchemyHandler* owner;
+  HBITMAP bitmap;
+  HRESULT result;
+};
 
 void TracePreview(const std::wstring& message) {
   wchar_t temporaryDirectory[MAX_PATH]{};
@@ -513,19 +522,53 @@ public:
     TracePreview(L"DoPreview window created=" +
       std::to_wstring(reinterpret_cast<UINT_PTR>(window_)));
     loading_ = true;
+    failed_ = false;
     UpdateWindow(window_);
 
-    const HRESULT rendered = Render(std::clamp<UINT>(std::max(width, height), 256, 1024), &previewBitmap_);
-    if (FAILED(rendered)) {
+    std::vector<std::uint8_t> structure;
+    if (!ReadStructureStream(stream_, structure)) {
       loading_ = false;
-      TracePreview(L"DoPreview render failed hr=" + std::to_wstring(static_cast<unsigned long>(rendered)));
+      TracePreview(L"ReadStructureStream failed");
       DestroyWindow(window_);
       window_ = nullptr;
-      return rendered;
+      return E_FAIL;
     }
-    loading_ = false;
-    InvalidateRect(window_, nullptr, FALSE);
-    TracePreview(L"DoPreview completed");
+    TracePreview(L"stream read bytes=" + std::to_wstring(structure.size()));
+    const UINT renderSize = std::clamp<UINT>(std::max(width, height), 256, 1024);
+    const HWND target = window_;
+    AddRef();
+    try {
+      std::thread([this, target, renderSize, input = std::move(structure)]() mutable {
+        const HRESULT initialized = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        std::vector<std::uint8_t> png;
+        HBITMAP bitmap = nullptr;
+        HRESULT result = E_FAIL;
+        if (RunBrokerRenderer(input, renderSize, png)) result = DecodePng(png, &bitmap);
+
+        auto completion = new (std::nothrow) PreviewCompletion{ this, bitmap, result };
+        DWORD_PTR accepted = 0;
+        SetLastError(ERROR_SUCCESS);
+        const LRESULT delivered = completion ? SendMessageTimeoutW(target, kPreviewReadyMessage,
+          0, reinterpret_cast<LPARAM>(completion), SMTO_ABORTIFHUNG, 2'000, &accepted) : 0;
+        if (!delivered || accepted != 1) {
+          if (!delivered && GetLastError() == ERROR_TIMEOUT) {
+            TracePreview(L"preview completion message timed out");
+          } else {
+            if (bitmap) DeleteObject(bitmap);
+            delete completion;
+          }
+        }
+        if (SUCCEEDED(initialized)) CoUninitialize();
+        Release();
+      }).detach();
+    } catch (...) {
+      Release();
+      loading_ = false;
+      DestroyWindow(window_);
+      window_ = nullptr;
+      return E_FAIL;
+    }
+    TracePreview(L"DoPreview render dispatched");
     return S_OK;
   }
 
@@ -535,6 +578,7 @@ public:
     if (previewBitmap_) DeleteObject(previewBitmap_);
     previewBitmap_ = nullptr;
     loading_ = false;
+    failed_ = false;
     SafeRelease(stream_);
     return S_OK;
   }
@@ -588,6 +632,25 @@ public:
   IFACEMETHODIMP SetFont(const LOGFONTW*) override { return S_OK; }
   IFACEMETHODIMP SetTextColor(COLORREF) override { return S_OK; }
 
+  LRESULT CompletePreview(PreviewCompletion* completion) {
+    if (!completion || completion->owner != this || !window_) return 0;
+    loading_ = false;
+    failed_ = FAILED(completion->result) || !completion->bitmap;
+    if (!failed_) {
+      if (previewBitmap_) DeleteObject(previewBitmap_);
+      previewBitmap_ = completion->bitmap;
+      completion->bitmap = nullptr;
+    } else if (completion->bitmap) {
+      DeleteObject(completion->bitmap);
+      completion->bitmap = nullptr;
+    }
+    TracePreview(L"DoPreview async completed hr=" +
+      std::to_wstring(static_cast<unsigned long>(completion->result)));
+    delete completion;
+    InvalidateRect(window_, nullptr, FALSE);
+    return 1;
+  }
+
   void Paint() {
     PAINTSTRUCT paint{};
     HDC dc = BeginPaint(window_, &paint);
@@ -616,11 +679,11 @@ public:
         source.bmWidth, source.bmHeight, SRCCOPY);
       SelectObject(memory, previous);
       DeleteDC(memory);
-    } else if (loading_) {
+    } else if (loading_ || failed_) {
       SetBkMode(dc, TRANSPARENT);
       ::SetTextColor(dc, RGB(196, 207, 196));
       HGDIOBJ previousFont = SelectObject(dc, GetStockObject(DEFAULT_GUI_FONT));
-      DrawTextW(dc, L"Loading...", -1, &client,
+      DrawTextW(dc, loading_ ? L"Loading..." : L"Preview unavailable", -1, &client,
         DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
       SelectObject(dc, previousFont);
     }
@@ -635,33 +698,12 @@ private:
   }
 
   HRESULT Render(UINT size, HBITMAP* bitmap) {
-    if (kind_ == HandlerKind::Preview) {
-      std::vector<std::uint8_t> structure;
-      if (!ReadStructureStream(stream_, structure)) {
-        TracePreview(L"ReadStructureStream failed");
-        return E_FAIL;
-      }
-      TracePreview(L"stream read bytes=" + std::to_wstring(structure.size()));
-      std::vector<std::uint8_t> png;
-      if (!RunBrokerRenderer(structure, size, png)) return E_FAIL;
-      const HRESULT decoded = DecodePng(png, bitmap);
-      TracePreview(L"DecodePng hr=" + std::to_wstring(static_cast<unsigned long>(decoded)));
-      return decoded;
-    }
-
-    if (!stream_) return E_UNEXPECTED;
+    if (kind_ != HandlerKind::Thumbnail || !stream_) return E_UNEXPECTED;
     std::vector<std::uint8_t> structure;
-    if (!ReadStructureStream(stream_, structure)) {
-      if (kind_ == HandlerKind::Preview) TracePreview(L"ReadStructureStream failed");
-      return E_FAIL;
-    }
-    if (kind_ == HandlerKind::Preview) TracePreview(L"stream read bytes=" + std::to_wstring(structure.size()));
+    if (!ReadStructureStream(stream_, structure)) return E_FAIL;
     std::vector<std::uint8_t> png;
-    if (!RunRenderer(structure, size, png, kind_ == HandlerKind::Preview)) return E_FAIL;
-    const HRESULT decoded = DecodePng(png, bitmap);
-    if (kind_ == HandlerKind::Preview) TracePreview(L"DecodePng hr=" +
-      std::to_wstring(static_cast<unsigned long>(decoded)));
-    return decoded;
+    if (!RunRenderer(structure, size, png, false)) return E_FAIL;
+    return DecodePng(png, bitmap);
   }
 
   void ResizePreview() {
@@ -678,6 +720,7 @@ private:
   RECT rect_{};
   HBITMAP previewBitmap_ = nullptr;
   bool loading_ = false;
+  bool failed_ = false;
   COLORREF background_ = RGB(16, 20, 16);
 };
 
@@ -691,6 +734,9 @@ LRESULT CALLBACK PreviewWindowProcedure(HWND window, UINT message, WPARAM wParam
   if (message == WM_PAINT && handler) {
     handler->Paint();
     return 0;
+  }
+  if (message == kPreviewReadyMessage && handler) {
+    return handler->CompletePreview(reinterpret_cast<PreviewCompletion*>(lParam));
   }
   if (message == WM_ERASEBKGND) return 1;
   return DefWindowProcW(window, message, wParam, lParam);
