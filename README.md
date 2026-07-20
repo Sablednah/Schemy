@@ -105,3 +105,8 @@ This component is installed only on Windows. The macOS and Linux packages are un
 ## License
 
 Schemy is open-source software available under the [MIT License](LICENSE).
+
+## Project policies
+
+- [Code signing policy](CODE_SIGNING_POLICY.md)
+- [Privacy policy](PRIVACY.md)
