@@ -6,6 +6,8 @@ import { blockName as baseName, geometryForBlock } from './geometry';
 import { colorFor } from './colors';
 
 const app=document.querySelector<HTMLDivElement>('#app')!;
+const thumbnailMode=new URLSearchParams(location.search).has('thumbnail');
+if(thumbnailMode)document.documentElement.classList.add('thumbnail-mode');
 app.innerHTML=`<canvas></canvas><header><div class="brand"><img src="./schemy-icon.png" alt=""><b>SCHEMY</b></div><div class="actions"><button id="textures" aria-pressed="false">Textures: Off</button><button id="open">Open structure</button></div></header><section id="empty"><img class="empty-logo" src="./schemy-icon.png" alt="Schemy"><h1>Drop a structure file</h1><p>.schematic, .schem, .nbt, or .litematic</p><button id="browse">Browse files</button></section><aside id="info"></aside><div id="error"></div>`;
 const canvas=app.querySelector('canvas')!,empty=app.querySelector<HTMLElement>('#empty')!,info=app.querySelector<HTMLElement>('#info')!,error=app.querySelector<HTMLElement>('#error')!,textureButton=app.querySelector<HTMLButtonElement>('#textures')!;
 
@@ -34,7 +36,7 @@ function renderModel(s:Schematic,name:string,resetCamera=true){
   if(resetCamera){const size=Math.max(s.width,s.height,s.length);controls.target.set(0,s.height/2,0);camera.position.set(size*1.3,size*.9,size*1.3);camera.near=Math.max(.01,size/1000);camera.far=size*20;camera.updateProjectionMatrix();controls.update()}
 }
 
-async function open(path?:string){try{path??=await window.schematic.chooseFile();if(!path)return;const f=await window.schematic.readFile(path);current=readSchematic(new Uint8Array(f.data));currentName=f.name;renderModel(current,currentName)}catch(e){error.textContent=e instanceof Error?e.message:String(e)}}
+async function open(path?:string){try{path??=await window.schematic.chooseFile();if(!path)return;const f=await window.schematic.readFile(path);current=readSchematic(new Uint8Array(f.data));currentName=f.name;renderModel(current,currentName);if(thumbnailMode)requestAnimationFrame(()=>requestAnimationFrame(()=>window.schematic.thumbnailReady()))}catch(e){const message=e instanceof Error?e.message:String(e);error.textContent=message;if(thumbnailMode)window.schematic.thumbnailReady(message)}}
 for(const id of ['open','browse'])app.querySelector(`#${id}`)?.addEventListener('click',()=>open());window.schematic.onOpenFile(open);
 function setTextured(enabled:boolean){textured=enabled;textureButton.textContent=`Textures: ${textured?'On':'Off'}`;textureButton.setAttribute('aria-pressed',String(textured));window.schematic.setTextureState(textured);if(current)renderModel(current,currentName,false)}
 textureButton.addEventListener('click',()=>setTextured(!textured));window.schematic.onTextureMode(setTextured);

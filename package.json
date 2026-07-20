@@ -1,6 +1,6 @@
 {
   "name": "schemy",
-  "version": "0.7.0",
+  "version": "0.8.11",
   "packageManager": "pnpm@11.9.0",
   "description": "Fast cross-platform 3D viewer for Minecraft .schematic files",
   "author": {
@@ -13,6 +13,7 @@
     "clean": "node -e \"require('fs').rmSync('dist-electron',{recursive:true,force:true})\"",
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "pnpm clean && tsc && vite build && electron-builder --publish never",
+    "build:windows-shell": "cmake -S windows-shell -B windows-shell/build -A x64 && cmake --build windows-shell/build --config Release",
     "build:web": "tsc && vite build",
     "test": "vitest run"
   },
@@ -37,7 +38,12 @@
     "directories": { "output": "release" },
     "files": ["dist/**/*", "dist-electron/**/*", "package.json"],
     "mac": { "category": "public.app-category.graphics-design", "target": ["dmg"], "fileAssociations": [{"ext": ["schematic", "schem", "nbt", "litematic"], "name": "Minecraft Structure", "role": "Viewer"}] },
-    "win": { "target": ["nsis"], "fileAssociations": [{"ext": ["schematic", "schem", "nbt", "litematic"], "name": "Minecraft Structure", "role": "Viewer"}] },
+    "win": {
+      "target": ["nsis"],
+      "extraResources": [{ "from": "windows-shell/out", "to": "shell", "filter": ["SchemyShell.dll", "SchemyPreviewBroker.exe"] }],
+      "fileAssociations": [{"ext": ["schematic", "schem", "nbt", "litematic"], "name": "Minecraft Structure", "role": "Viewer"}]
+    },
+    "nsis": { "include": "build/installer.nsh" },
     "linux": { "target": ["AppImage", "deb"], "category": "Graphics", "fileAssociations": [{"ext": ["schematic", "schem", "nbt", "litematic"], "name": "Minecraft Structure", "role": "Viewer", "mimeType": "application/x-minecraft-structure"}] }
   }
 }

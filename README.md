@@ -15,6 +15,7 @@ Open a structure from the File menu, drag it into the window, or associate a sup
 - Interactive orbit, pan, and zoom controls
 - Native Windows, macOS, and Linux packages
 - Double-click file associations
+- Windows Explorer thumbnails and Preview pane integration
 - File picker and drag-and-drop opening
 - Efficient instanced rendering for large structures
 - Procedural geometry for common non-cube Minecraft blocks
@@ -87,9 +88,25 @@ The macOS artifact is currently unsigned. macOS users must explicitly allow it t
 - More specialised and resource-pack-defined block geometry
 - Optional user-supplied Minecraft resource packs
 - Block entity and entity previews
-- Windows Explorer thumbnails and Preview pane integration
 - Render-to-image export
 
 ## Windows Explorer previews
 
-Explorer thumbnails and its Preview pane require a signed native COM shell extension. File association and direct opening are supported today; shell previews are planned as a separate Windows component.
+The Windows installer includes a native Explorer extension for all supported formats. It generates model thumbnails for icon views and a larger static render in Explorer's Preview pane. A **Loading...** state appears while the first render is prepared.
+
+Windows keeps the Preview Handler in its recommended low-integrity process. A small per-user Schemy broker performs the 3D render at normal user integrity and returns only the resulting PNG through a local pipe restricted to the current user and Windows' `prevhost.exe`. The broker starts automatically at sign-in; no administrator access or `DisableLowILProcessIsolation` registry override is required.
+
+The first preview normally takes a few seconds because the renderer starts on demand. Explorer thumbnails and Preview pane renders use the same model parsing and geometry as the main app.
+
+For development diagnostics, run `tools/diagnose-windows-preview.ps1` with `-EnableTrace`, then restart Explorer. This opt-in setting writes `SchemyPreview.log` and `SchemyPreviewBroker.log` beneath the current user's temporary directory. Remove `HKCU\Software\Schemy\PreviewTrace` to turn tracing off again.
+
+This component is installed only on Windows. The macOS and Linux packages are unchanged and continue to provide file association and direct opening through their native file managers.
+
+## License
+
+Schemy is open-source software available under the [MIT License](LICENSE).
+
+## Project policies
+
+- [Code signing policy](CODE_SIGNING_POLICY.md)
+- [Privacy policy](PRIVACY.md)
