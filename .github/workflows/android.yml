@@ -88,6 +88,7 @@ jobs:
             ./gradlew assembleRelease
             VERSION=$(node -p "require('../package.json').version")
             cp app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/Schemy-Android-v${VERSION}.apk"
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "app/build/outputs/apk/release/Schemy-Android-v${VERSION}.apk"
           else
             ./gradlew assembleDebug
           fi
