@@ -27,10 +27,14 @@ public class SchemyFilesPlugin extends Plugin {
 
     @PluginMethod
     public void pickFile(PluginCall call) {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        // Schemy imports the selected bytes immediately, so GET_CONTENT is a
+        // better fit than requesting persistent document access. In particular,
+        // some Android document providers mark uncommon extensions such as
+        // .schem as unavailable to ACTION_OPEN_DOCUMENT even when they can
+        // happily supply the file's content.
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType("*/*");
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         startActivityForResult(call, intent, "pickFileResult");
     }
 
@@ -42,11 +46,6 @@ public class SchemyFilesPlugin extends Plugin {
         if (result.getResultCode() != Activity.RESULT_OK || uri == null) {
             call.resolve(new JSObject());
             return;
-        }
-        try {
-            getContext().getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        } catch (SecurityException ignored) {
-            // Some document providers grant access only for the current activity.
         }
         if (!isSupported(displayName(uri))) {
             call.reject("Please choose a .schematic, .schem, .nbt, or .litematic file");
