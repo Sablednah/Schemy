@@ -13,7 +13,7 @@ Open a structure from the File menu, drag it into the window, or associate a sup
 ## Features
 
 - Interactive orbit, pan, and zoom controls
-- Native Windows, macOS, and Linux packages
+- Native Windows, macOS, Linux, and Android packages
 - Double-click file associations
 - Windows Explorer thumbnails and Preview pane integration
 - File picker and drag-and-drop opening
@@ -84,6 +84,17 @@ pnpm build
 ```
 
 Installers are written to `release/`. Build on the operating system you want to target.
+
+### Android
+
+Install Android Studio with an Android SDK, then build and sync the native project:
+
+```powershell
+pnpm android:sync
+pnpm android:open
+```
+
+Android supports the system document picker and **Open with Schemy** for `.schematic`, `.schem`, `.nbt`, and `.litematic` files. A test APK is also produced by the Android GitHub Actions workflow. Windows Explorer thumbnails and Preview pane integration remain Windows-only.
 
 ## Automated builds
 
