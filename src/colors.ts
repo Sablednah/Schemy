@@ -1,4 +1,5 @@
 import { blockName } from './geometry.js';
+import { textureAverageColors } from './texture-colors.js';
 
 const FALLBACK_COLOR=0xbd63b8;
 const legacyColors:Record<number,number>={1:0x8c8c8c,2:0x60913b,3:0x79563a,4:0x777777,5:0xb88a55,7:0x333333,8:0x377dba,9:0x377dba,12:0xdac68b,13:0x8a806e,17:0x715236,18:0x3d713a,20:0xb9d7df,24:0xd4bd78,35:0xd8d8d8,41:0xf4cf42,42:0xbfc3c4,45:0x9d4d36,49:0x312244,79:0xa9d7e8,80:0xf5f5f5,87:0x74352d,89:0xd6b84c,98:0x777777};
@@ -8,6 +9,8 @@ const woodColors:Record<string,number>={oak:0xb88a55,spruce:0x765436,birch:0xd7c
 export function colorFor(state:string){
   const legacy=/legacy:block_(\d+)/.exec(state);if(legacy)return legacyColors[Number(legacy[1])]??FALLBACK_COLOR;
   const n=blockName(state);if(['air','cave_air','void_air','structure_void','barrier','light'].includes(n))return 0;
+  const propertyColor=/[\[,]color=([a-z_]+)/.exec(state)?.[1],propertyTexture=propertyColor?textureAverageColors[`${propertyColor}_${n}`]:undefined;if(propertyTexture!==undefined)return propertyTexture;
+  const textureAverage=textureAverageColors[n];if(textureAverage!==undefined)return textureAverage;
   if(n.includes('grass')||n.includes('moss')||n.includes('azalea'))return 0x60913b;if(n.includes('leaves')||n.includes('vine'))return 0x3d713a;
   if(/flower|tulip|orchid|dandelion|poppy|lilac|peony|rose_bush|bluet|daisy|allium|sunflower|spore_blossom|lily|pitcher|wither_rose/.test(n))return 0x769b43;
   if(/sugar_cane|bamboo|cactus|fern|bush|sapling|wheat|carrots|potatoes|beetroots|kelp|seagrass|roots|dripleaf|lily_pad|sea_pickle/.test(n))return 0x6e913c;
@@ -26,7 +29,7 @@ export function colorFor(state:string){
   if(n.includes('diamond'))return 0x55d6cf;if(n.includes('emerald'))return 0x36b95f;if(n.includes('lapis'))return 0x3155a5;if(n.includes('coal'))return 0x424242;if(n.includes('netherite')||n==='ancient_debris')return 0x4b4142;
   if(n.includes('brick'))return 0x9d4d36;if(n.includes('obsidian'))return 0x312244;if(n.includes('netherrack'))return 0x74352d;
   if(n.includes('redstone'))return 0xa12722;
-  const propertyColor=/[\[,]color=([a-z_]+)/.exec(state)?.[1];if(propertyColor&&dyes[propertyColor])return dyes[propertyColor];
+  if(propertyColor&&dyes[propertyColor])return dyes[propertyColor];
   const dye=Object.keys(dyes).sort((a,b)=>b.length-a.length).find(color=>n===color||n.startsWith(`${color}_`)||n.includes(`_${color}_`));
   if(dye)return dyes[dye];
   if(/furnace|smoker|dispenser|dropper|observer|piston|repeater|comparator|daylight_detector|rail|spawner/.test(n))return 0x777777;

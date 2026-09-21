@@ -2,6 +2,8 @@ import { describe,expect,it } from 'vitest';
 import { colorFor,isFallbackColor } from './colors';
 
 describe('block colours',()=>{
+  it('uses averages derived from vanilla block textures',()=>{expect(colorFor('minecraft:stone')).toBe(0x7e7e7e);expect(colorFor('minecraft:oak_planks')).toBe(0xa2834f);expect(colorFor('minecraft:red_concrete')).toBe(0x8e2121)});
+  it('uses the tinted defining surface for grass blocks',()=>expect(colorFor('minecraft:grass_block[snowy=false]')).toBe(0x546d33));
   it('colours stone variants rather than using magenta',()=>{for(const name of ['granite','polished_granite','calcite','diorite','andesite'])expect(isFallbackColor(`minecraft:${name}`)).toBe(false)});
   it('inherits wood species colours for shaped blocks',()=>{expect(colorFor('minecraft:spruce_slab')).toBe(colorFor('minecraft:spruce_fence'));expect(isFallbackColor('minecraft:oak_trapdoor')).toBe(false)});
   it('hides non-rendering technical blocks',()=>{expect(colorFor('minecraft:barrier')).toBe(0);expect(colorFor('minecraft:light[level=15]')).toBe(0)});

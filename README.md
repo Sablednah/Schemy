@@ -19,7 +19,7 @@ Open a structure from the File menu, drag it into the window, or associate a sup
 - File picker and drag-and-drop opening
 - Efficient instanced rendering for large structures
 - Procedural geometry for common non-cube Minecraft blocks
-- Original colour preview plus optional generated pixel textures
+- Vanilla-texture-derived flat colours plus optional generated pixel textures
 - Gzip-compressed and uncompressed NBT support
 - Model format, dimensions, and non-air block count
 - Automatic format detection from NBT contents
@@ -45,7 +45,7 @@ Block and entity NBT is read safely but is not visually rendered yet. Schemy inc
 | Open file | `Ctrl+O` / `Cmd+O` |
 | Change appearance | **View → Generated textures**, `Ctrl+T` / `Cmd+T`, or the **Textures: On/Off** button |
 
-The texture mode is generated locally and does not redistribute Mojang texture assets. The original colour rendering remains the default.
+The texture mode is generated locally and does not redistribute Mojang texture assets. Flat-colour rendering remains the default; its palette is derived from average colours in vanilla block textures, including representative biome tints for grass and foliage.
 
 ## Development
 
@@ -68,6 +68,14 @@ Run the parser tests:
 ```powershell
 pnpm test
 ```
+
+The checked-in flat-colour palette can be refreshed from a locally installed vanilla client JAR using Python 3 and Pillow:
+
+```powershell
+python tools/generate-texture-colors.py "<minecraft-client.jar>"
+```
+
+The generator writes only derived RGB values. Minecraft texture files are never copied into Schemy.
 
 ## Building locally
 
