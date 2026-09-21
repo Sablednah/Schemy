@@ -25,20 +25,30 @@
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="application/x-minecraft-structure" />
+                <data android:mimeType="application/x-minecraft-schematic" />
+                <data android:mimeType="application/x-sponge-schematic" />
+                <data android:mimeType="application/x-schematic" />
+                <data android:mimeType="application/x-nbt" />
+                <data android:mimeType="application/x-litematic" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/gzip" />
+                <data android:mimeType="application/x-gzip" />
             </intent-filter>
 
             <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="content" />
-                <data android:scheme="file" />
+                <data android:mimeType="application/x-minecraft-structure" />
+                <data android:mimeType="application/x-minecraft-schematic" />
+                <data android:mimeType="application/x-sponge-schematic" />
+                <data android:mimeType="application/x-schematic" />
+                <data android:mimeType="application/x-nbt" />
+                <data android:mimeType="application/x-litematic" />
                 <data android:mimeType="application/octet-stream" />
                 <data android:mimeType="application/gzip" />
-                <data android:pathPattern=".*\.schematic" />
-                <data android:pathPattern=".*\.schem" />
-                <data android:pathPattern=".*\.nbt" />
-                <data android:pathPattern=".*\.litematic" />
+                <data android:mimeType="application/x-gzip" />
             </intent-filter>
         </activity>
 

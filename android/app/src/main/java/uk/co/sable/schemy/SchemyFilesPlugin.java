@@ -30,11 +30,7 @@ public class SchemyFilesPlugin extends Plugin {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
-        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {
-            "application/octet-stream",
-            "application/gzip",
-            "application/x-minecraft-structure"
-        });
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(call, intent, "pickFileResult");
     }
 
@@ -103,11 +99,21 @@ public class SchemyFilesPlugin extends Plugin {
     @Override
     protected void handleOnNewIntent(Intent intent) {
         super.handleOnNewIntent(intent);
-        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction()) || intent.getData() == null) return;
-        Uri uri = intent.getData();
+        Uri uri = incomingUri(intent);
+        if (uri == null) return;
         if (!isSupported(displayName(uri))) return;
         if (hasListeners("fileOpen")) notifyListeners("fileOpen", reference(uri));
         else pendingUri = uri.toString();
+    }
+
+    private Uri incomingUri(Intent intent) {
+        if (intent == null) return null;
+        if (Intent.ACTION_VIEW.equals(intent.getAction())) return intent.getData();
+        if (Intent.ACTION_SEND.equals(intent.getAction())) {
+            Object stream = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            return stream instanceof Uri ? (Uri) stream : null;
+        }
+        return null;
     }
 
     private JSObject reference(Uri uri) {
